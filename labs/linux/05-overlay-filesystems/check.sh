@@ -13,7 +13,9 @@
 # This checks the state currently on disk — run it any time after Step 5
 # and before Step 7's cleanup umount.
 #
-# Usage: bash check.sh (sudo only needed if your user can't read $OVL)
+# Usage: bash check.sh — if you run this as `sudo bash check.sh` instead,
+# REAL_HOME resolution below still points $OVL at the invoking user's
+# directory rather than /root's (sudo resets $HOME by default).
 set -uo pipefail
 
 PASS=0
@@ -25,7 +27,12 @@ bad()  { echo "[FAIL] $1"; FAIL=$((FAIL+1)); }
 echo "[check] Lab 5 — Overlay Filesystems"
 echo
 
-OVL="$HOME/ovl"
+if [ -n "${SUDO_USER:-}" ]; then
+    REAL_HOME=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+fi
+REAL_HOME="${REAL_HOME:-$HOME}"
+
+OVL="$REAL_HOME/ovl"
 
 # --- overlay is mounted ---
 if mount | grep -q "on $OVL/merged type overlay"; then

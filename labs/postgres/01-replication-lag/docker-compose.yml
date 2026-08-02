@@ -1,0 +1,64 @@
+services:
+  primary:
+    image: postgres:16
+    container_name: lab31-primary
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: appdb
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./data/primary:/var/lib/postgresql/data
+      - ./init-primary.sh:/docker-entrypoint-initdb.d/init-primary.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  standby:
+    image: postgres:16
+    container_name: lab31-standby
+    environment:
+      POSTGRES_PASSWORD: postgres
+    entrypoint: ["/bin/bash", "/standby-entrypoint.sh"]
+    ports:
+      - "5434:5432"
+    volumes:
+      # NOTE: the standby's real PGDATA and io-hog's scratch space both
+      # live under ./data/standby-disk on the HOST, on purpose — they need
+      # to share the same underlying disk for the I/O contention to be
+      # real. Separate subdirectories so io-hog never touches Postgres's
+      # actual data files.
+      - ./data/standby-disk/pgdata:/var/lib/postgresql/data
+      - ./standby-entrypoint.sh:/standby-entrypoint.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+    depends_on:
+      primary:
+        condition: service_healthy
+
+  io-hog:
+    image: postgres:16
+    container_name: lab31-io-hog
+    # Idle by default — setup.sh triggers the actual contention burst with
+    # `docker exec -d lab31-io-hog ...` so it's a bounded, on-demand burst
+    # rather than something that runs forever just because the container
+    # is up.
+    entrypoint: ["sleep", "infinity"]
+    volumes:
+      - ./data/standby-disk/io-hog-scratch:/hogdata
+    depends_on:
+      standby:
+        condition: service_healthy

@@ -1,0 +1,50 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: incident01-mysql
+    command: --max-connections=30
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: ./app
+    container_name: incident01-app
+    command: ["python3", "app.py"]
+    environment:
+      DB_HOST: mysql
+      DB_USER: appuser
+      DB_PASSWORD: apppass
+      DB_NAME: appdb
+      DB_POOL_SIZE: "10"
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  worker:
+    build: ./app
+    container_name: incident01-worker
+    command: ["python3", "worker.py"]
+    environment:
+      DB_HOST: mysql
+      DB_USER: appuser
+      DB_PASSWORD: apppass
+      DB_NAME: appdb
+      RECONCILER_WORKERS: "26"
+      RECONCILER_HOLD_SECONDS: "20"
+    depends_on:
+      mysql:
+        condition: service_healthy

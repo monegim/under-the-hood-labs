@@ -7,12 +7,18 @@
 #
 # Safe to run even if none of this exists, and safe to run twice in a row.
 #
-# Usage: sudo bash reset.sh
+# Usage: sudo bash reset.sh — REAL_HOME resolution below points $OVL at the
+# invoking user's directory, not /root's (sudo resets $HOME by default).
 set -uo pipefail
 
 echo "[reset] Lab 5 — Overlay Filesystems"
 
-OVL="$HOME/ovl"
+if [ -n "${SUDO_USER:-}" ]; then
+    REAL_HOME=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+fi
+REAL_HOME="${REAL_HOME:-$HOME}"
+
+OVL="$REAL_HOME/ovl"
 
 # --- unmount the overlay ---
 if mountpoint -q "$OVL/merged" 2>/dev/null; then

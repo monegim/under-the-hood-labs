@@ -16,7 +16,10 @@
 # If no container process is found, this fails and tells you to build it
 # via README.md Steps 1-4 first — this check does not build one itself.
 #
-# Usage: sudo bash check.sh
+# Usage: bash check.sh   (it sudo's internally only for privileged reads;
+# running the whole script as `sudo bash check.sh` also works — see the
+# REAL_HOME resolution below, which avoids the classic "sudo resets $HOME
+# to /root" trap so $ROOTFS still points at the invoking user's directory)
 set -uo pipefail
 
 PASS=0
@@ -28,7 +31,16 @@ bad()  { echo "[FAIL] $1"; FAIL=$((FAIL+1)); }
 echo "[check] Lab 4 — Build Your Own Container"
 echo
 
-ROOTFS="$HOME/mycontainer/rootfs"
+# Resolve the invoking user's real home directory even if this script itself
+# was launched via `sudo bash check.sh` (which resets $HOME to /root's home
+# by default) — README.md builds $ROOTFS under the LOGIN user's $HOME, not
+# root's.
+if [ -n "${SUDO_USER:-}" ]; then
+    REAL_HOME=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+fi
+REAL_HOME="${REAL_HOME:-$HOME}"
+
+ROOTFS="$REAL_HOME/mycontainer/rootfs"
 CGROUP=/sys/fs/cgroup/mycontainer
 
 # --- find the running container process (same pattern README Step 4 uses) ---

@@ -20,9 +20,8 @@ roughly 120 labs total once complete.
   command"), plus 3-6 curated resources (books, docs, YouTube channels) to
   go deeper
 - `setup.sh` — builds the "before" broken state automatically
-- `check.sh` / `reset.sh` — being added lab-by-lab (see status below):
-  `check.sh` automatically verifies whether you actually fixed it,
-  `reset.sh` restores the broken state so you can retry
+- `check.sh` — automatically verifies whether you actually fixed it
+- `reset.sh` — restores the broken state so you can retry
 
 ## Levels
 
@@ -63,15 +62,16 @@ metrics, and a broken environment — no hints, find the root cause.
 ## Status
 
 **30 of ~120 labs are written** (Levels 1, 2, and a first Level 4 seed).
+Levels 1 and 2 (all 30 of those labs) now have full `check.sh`/`reset.sh`
+automation. Levels 3 (Storage), 5 (Kubernetes), 6 (Incidents), and the
+rest of Level 4 (Postgres + the remaining MySQL topics) are actively being
+built out with `check.sh`/`reset.sh` included from the start.
+
 **None of this has been run end-to-end on a live VM yet** — every command
 was written from careful reasoning about real tool behavior, not from an
 actual test run. Treat it as a first draft to dry-run before recording,
 not verified fact. See [`CONTEXT.md`](CONTEXT.md) for the full list of
 what's flagged as needing a live check.
-
-`check.sh`/`reset.sh` automation is being retrofitted onto the existing
-labs incrementally, starting with Level 1 and 2, before new levels are
-built out.
 
 ## Prerequisites
 - A Linux VM (tested on \[fill in your distro/version\])

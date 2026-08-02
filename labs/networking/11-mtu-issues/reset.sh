@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Lab 11 (MTU Issues) — tears down and redeploys the topology, then
+# re-applies the README's Steps 1-2 live config (addressing, forwarding,
+# GRE tunnel + routes) — none of this is baked into the topology file.
+# This restores the clean baseline (working PMTUD, no iptables rules, full
+# 1500 underlay MTU) so the two challenges can be re-run from scratch.
+set -uo pipefail
+
+LAB="mtu-lab"
+HOSTA="clab-${LAB}-hostA"
+R1="clab-${LAB}-r1"
+R2="clab-${LAB}-r2"
+HOSTB="clab-${LAB}-hostB"
+
+cd "$(dirname "$0")"
+
+echo "[reset] destroying existing topology (if any)..."
+sudo containerlab destroy -t topology.clab.yml --cleanup
+
+echo "[reset] deploying topology..."
+sudo containerlab deploy -t topology.clab.yml
+
+echo "[reset] waiting for nodes to be ready..."
+for c in "$HOSTA" "$R1" "$R2" "$HOSTB"; do
+  ready=0
+  for i in $(seq 1 30); do
+    docker exec "$c" true >/dev/null 2>&1 && { ready=1; break; }
+    sleep 2
+  done
+  [ "$ready" -eq 1 ] || { echo "[reset] ERROR: $c never became ready"; exit 1; }
+done
+
+echo "[reset] installing tools (this can take a minute)..."
+for n in hostA r1 r2 hostB; do
+  docker exec "clab-${LAB}-$n" bash -c \
+    "apt-get update -qq && apt-get install -y -qq iproute2 iputils-ping tcpdump iptables >/dev/null"
+done
+
+echo "[reset] addressing interfaces and enabling forwarding..."
+docker exec "$HOSTA" ip addr add 10.1.1.10/24 dev eth1
+docker exec "$HOSTA" ip link set eth1 up
+docker exec "$HOSTA" ip route add default via 10.1.1.1
+
+docker exec "$R1" ip addr add 10.1.1.1/24 dev eth1
+docker exec "$R1" ip link set eth1 up
+docker exec "$R1" ip addr add 172.16.0.1/30 dev eth2
+docker exec "$R1" ip link set eth2 up
+docker exec "$R1" sysctl -w net.ipv4.ip_forward=1
+
+docker exec "$R2" ip addr add 172.16.0.2/30 dev eth1
+docker exec "$R2" ip link set eth1 up
+docker exec "$R2" ip addr add 10.2.2.1/24 dev eth2
+docker exec "$R2" ip link set eth2 up
+docker exec "$R2" sysctl -w net.ipv4.ip_forward=1
+
+docker exec "$HOSTB" ip addr add 10.2.2.10/24 dev eth1
+docker exec "$HOSTB" ip link set eth1 up
+docker exec "$HOSTB" ip route add default via 10.2.2.1
+
+echo "[reset] building the GRE tunnel..."
+docker exec "$R1" ip tunnel add gre1 mode gre remote 172.16.0.2 local 172.16.0.1 ttl 255
+docker exec "$R1" ip addr add 192.168.100.1/30 dev gre1
+docker exec "$R1" ip link set gre1 up
+docker exec "$R1" ip route add 10.2.2.0/24 via 192.168.100.2 dev gre1
+
+docker exec "$R2" ip tunnel add gre1 mode gre remote 172.16.0.1 local 172.16.0.2 ttl 255
+docker exec "$R2" ip addr add 192.168.100.2/30 dev gre1
+docker exec "$R2" ip link set gre1 up
+docker exec "$R2" ip route add 10.1.1.0/24 via 192.168.100.1 dev gre1
+
+echo "[reset] verifying baseline PMTUD behavior..."
+if docker exec "$HOSTA" ping -M do -s 1448 -c 2 -W 2 10.2.2.10 >/dev/null 2>&1; then
+  echo "[reset] 1448-byte DF ping succeeds as expected"
+else
+  echo "[reset] WARNING: 1448-byte DF ping failed, check manually"
+fi
+
+OUT=$(docker exec "$HOSTA" ping -M do -s 1449 -c 2 -W 2 10.2.2.10 2>&1 || true)
+if echo "$OUT" | grep -qi "frag needed"; then
+  echo "[reset] 1449-byte DF ping correctly reports 'Frag needed' — PMTUD is working"
+else
+  echo "[reset] WARNING: 1449-byte DF ping did not report 'Frag needed', check manually"
+fi
+
+echo "[reset] done. Run ./check.sh to verify health."

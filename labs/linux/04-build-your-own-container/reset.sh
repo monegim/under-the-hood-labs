@@ -8,12 +8,19 @@
 #
 # Safe to run even if none of this exists, and safe to run twice in a row.
 #
-# Usage: sudo bash reset.sh
+# Usage: sudo bash reset.sh — REAL_HOME resolution below makes sure $ROOTFS
+# still points at the invoking user's directory, not /root's, even though
+# the whole script runs under sudo (sudo resets $HOME by default).
 set -uo pipefail
 
 echo "[reset] Lab 4 — Build Your Own Container"
 
-ROOTFS="$HOME/mycontainer/rootfs"
+if [ -n "${SUDO_USER:-}" ]; then
+    REAL_HOME=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+fi
+REAL_HOME="${REAL_HOME:-$HOME}"
+
+ROOTFS="$REAL_HOME/mycontainer/rootfs"
 
 # --- kill any running container process(es) ---
 PIDS=$(pgrep -f "chroot $ROOTFS" 2>/dev/null || true)
@@ -49,11 +56,11 @@ for cg in mycontainer mycontainer2; do
 done
 
 # --- remove the rootfs/chroot directory ---
-if [ -d "$HOME/mycontainer" ]; then
-    rm -rf "$HOME/mycontainer"
-    echo "[reset] removed $HOME/mycontainer"
+if [ -d "$REAL_HOME/mycontainer" ]; then
+    rm -rf "$REAL_HOME/mycontainer"
+    echo "[reset] removed $REAL_HOME/mycontainer"
 else
-    echo "[reset] $HOME/mycontainer not present, skipping"
+    echo "[reset] $REAL_HOME/mycontainer not present, skipping"
 fi
 
 echo "[reset] done. Re-run README.md Steps 1-6 to build the lab again."
