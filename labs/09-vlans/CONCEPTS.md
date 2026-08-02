@@ -1,0 +1,23 @@
+# Lab 9 — Concept: VLANs
+
+## What's actually going on
+
+An 802.1Q VLAN tag is 4 extra bytes inserted into an Ethernet frame right after the source MAC address: a 2-byte TPID (Tag Protocol Identifier, fixed at `0x8100` — this is what tells a switch "the next two bytes are a VLAN tag, not the EtherType") followed by a 2-byte TCI (Tag Control Information), which packs a 3-bit priority (PCP, for 802.1p QoS), a 1-bit DEI (drop-eligible), and a 12-bit VLAN ID — giving you the familiar 1–4094 range. This is exactly what `tcpdump -e` showed you on the trunk port: a real header field on the wire, not a Linux abstraction layered on top of something else.
+
+A plain Linux bridge doesn't understand any of this — it switches purely on destination MAC, and by default a `vlan_filtering 0` bridge will happily bridge tagged frames around as opaque payload without ever inspecting the tag, silently merging what you think are separate VLANs into one flat domain. `vlan_filtering 1` turns on the bridge's actual 802.1Q-aware datapath, and from that point every port has a **VLAN membership table**, which is exactly what `bridge vlan show` prints per port: which VIDs are allowed on this port, whether each VID is tagged or untagged on egress, and which VID is the PVID (Port VLAN ID — the VLAN an untagged incoming frame gets assigned to). This table-per-port model is a direct, one-to-one mapping onto a real switch's "switchport access vlan X" (PVID + untagged egress = access port) versus "switchport trunk allowed vlan 10,20" (no PVID, tagged egress = trunk port) configuration. The kernel doesn't have separate "access mode" and "trunk mode" commands — it's all just entries in this same per-port VLAN table, and "access" vs "trunk" behavior falls out of whether an entry has `pvid untagged` set or not.
+
+VLANs are isolated because the bridge's forwarding and flooding logic treats each VID as an entirely separate broadcast domain internally — MAC learning happens per-VLAN, not just per-port, so the same MAC address could theoretically be learned on VLAN 10 via one port and VLAN 20 via another without conflict. That's why `ns1` and `ns3` in this lab aren't just "different subnets" — they're not in the same flooding domain at all, so ARP broadcasts from one never even reach the other's port, regardless of IP addressing.
+
+The router's VLAN sub-interfaces (`veth5.10`, `veth5.20`) are a second, independent mechanism using the `8021q` kernel module: it creates a virtual `net_device` layered on top of a real one, where the virtual device strips/adds a specific VLAN tag on ingress/egress. This is what makes "router on a stick" work — one physical wire (`veth5`) carries tagged frames for both VLANs, and the kernel demultiplexes them into two separate interfaces the routing table can treat independently, exactly like `eth0.10` on a hypervisor NIC or a home lab pfSense box with tagged VLANs on one uplink.
+
+## Where this shows up in the real world
+
+- Every managed switch config you'll ever type (`switchport mode access`/`switchport mode trunk`, native VLAN, allowed-VLAN lists) is this same per-port VLAN membership model, just with Cisco/Arista/Juniper syntax instead of `bridge vlan add`.
+- Hypervisor virtual switches (VMware vSwitch port groups, OVS VLAN tagging, KVM's `virtio-net` with a VLAN-tagged bridge) use the identical tagged/untagged, PVID/trunk model to isolate tenant traffic on shared physical NICs.
+- **Diagnosis scenario:** a VM suddenly can't reach anything on its subnet after what looked like an unrelated change to a hypervisor's network config. `bridge vlan show` (or its vSwitch-UI equivalent) telling you the VM's port silently landed on the wrong VID — not a routing or DNS problem — is the difference between a two-minute fix and an hour spent staring at `ip route` on a machine that was never broken in the first place.
+
+## Go deeper
+- **Book:** *Computer Networking: A Top-Down Approach* — Jim Kurose & Keith Ross — covers the switching/VLAN fundamentals this lab builds on before you dig into 802.1Q specifics.
+- **Website/docs:** NetworkLessons.com — https://networklessons.com — especially strong, detailed tutorials specifically on VLANs, trunk ports, and native VLAN behavior on real switch hardware.
+- **Website/docs:** ipSpace.net — https://ipspace.net — Ivan Pepelnjak's deeper technical content on where VLAN-based segmentation stops scaling and why datacenters moved to VXLAN — useful context once you've seen the VLAN ID's 12-bit (4094) ceiling firsthand.
+- **YouTube:** David Bombal — https://www.youtube.com/@davidbombal — CCNA-level and beyond walkthroughs of trunk/access port configuration on real switches, good for mapping this lab's Linux commands onto Cisco IOS syntax.
