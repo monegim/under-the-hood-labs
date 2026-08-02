@@ -1,59 +1,80 @@
-# Linux, Networking & DBRE — Hands-On Labs
+# Under the Hood — SRE/DBRE Troubleshooting Labs
 
-A series of hands-on labs to build real SRE/DBRE troubleshooting skill —
-not just "what is a VLAN," but build it, break it, and diagnose it yourself
-using the same tools you'd use in a real incident.
+Most "hands-on Linux/networking/DBRE" content teaches you how to configure
+things. This teaches you how to **troubleshoot** them — build the system,
+break it on purpose, diagnose it with the same tools you'd use in a real
+incident, then read a postmortem that explains not just the fix but *why*
+it happened and why the obvious fix often doesn't work.
 
-Each lab follows the same format:
-- `README.md` — objective, why it matters, step-by-step build, then challenges (no answers)
-- `SOLUTION.md` — the diagnosis process and fix, written like a postmortem
-- `setup.sh` — optional script to build the "before" state automatically
+Structured like a game: six levels, increasing in scope and difficulty,
+roughly 120 labs total once complete.
 
-## Roadmap
+## Each lab contains
 
-### Track 1 — Linux internals (build a container from scratch)
-1. [Network namespaces](labs/01-network-namespaces)
-2. [PID + mount namespaces](labs/02-pid-mount-namespaces)
-3. [cgroups](labs/03-cgroups)
-4. [Put it together: your own container](labs/04-build-your-own-container) (chroot + namespaces + cgroups)
-5. [Overlay filesystems](labs/05-overlay-filesystems)
-6. [Kubernetes internals](labs/06-kubernetes-internals)
-7. [eBPF basics](labs/07-ebpf-basics)
+- `README.md` — objective, why it matters, step-by-step build (numbered,
+  copy-pasteable), then 2 "break it" challenges — **no answers given here**
+- `solution.md` — the diagnosis process and fix, written like a postmortem:
+  root cause, why it happened, why common fixes don't work, the commands
+  that reveal it, how to prevent it, real-world examples
+- `CONCEPTS.md` — the mechanism explained properly (not just "run this
+  command"), plus 3-6 curated resources (books, docs, YouTube channels) to
+  go deeper
+- `setup.sh` — builds the "before" broken state automatically
+- `check.sh` / `reset.sh` — being added lab-by-lab (see status below):
+  `check.sh` automatically verifies whether you actually fixed it,
+  `reset.sh` restores the broken state so you can retry
 
-### Track 2 — Networking (containerlab + FRR)
-8. [Linux bridge](labs/08-linux-bridge)
-9. [VLANs](labs/09-vlans)
-10. [Static routing](labs/10-static-routing)
-11. [NAT](labs/11-nat)
-12. [Firewalls](labs/12-firewalls)
-13. [OSPF](labs/13-ospf)
-14. [BGP](labs/14-bgp)
-15. [GRE tunnels](labs/15-gre-tunnels)
-16. [VXLAN](labs/16-vxlan)
-17. [IPsec](labs/17-ipsec)
-18. [MTU issues](labs/18-mtu-issues)
-19. [Packet captures](labs/19-packet-captures)
+## Levels
 
-### Track 3 — Production troubleshooting (Linux + DBRE combined)
-20. [Why is the server slow](labs/20-why-is-the-server-slow)
-21. [Process stuck in D state](labs/21-process-stuck-in-d-state)
-22. [OOM killer takes out MySQL](labs/22-oom-killer-mysql)
-23. [Disk 20% full but writes fail](labs/23-disk-full-writes-fail)
-24. [Service won't start after reboot](labs/24-service-wont-start-after-reboot)
-25. [Log partition full](labs/25-log-partition-full)
-26. [Deleted-but-open file eating disk](labs/26-deleted-open-file-eating-disk)
-27. [High CPU steal time](labs/27-high-cpu-steal-time)
-28. [Too many open files](labs/28-too-many-open-files)
-29. [Permissions vs ACLs](labs/29-permissions-vs-acls)
-30. [DBRE combo labs](labs/30-dbre-combo-labs) (replication lag, connection pool exhaustion, network partition)
+### Level 1 — Linux Basics (17 built / 20 planned)
+Not "how to use `ps`" — how Linux actually works under a real incident.
+Split into two halves: **foundations** (build the underlying mechanism
+yourself — namespaces, cgroups, overlayfs, a container from scratch,
+eBPF) and **troubleshooting** (a simulated production incident per lab).
+[`labs/linux/`](labs/linux)
 
-All 30 labs are written. Labs 10-19 use [containerlab](https://containerlab.dev) +
-FRR topologies; labs 20-30 ship a `setup.sh` that reproduces the "before"
-incident state; lab 30 ships a `docker-compose.yml` for a MySQL
-primary/replica pair. None of this has been run end-to-end on a live VM yet —
-treat it as a first draft to dry-run before recording, not verified fact.
+Tools: `ps`, `top`/`htop`, `vmstat`, `iostat`, `strace`, `lsof`, `journalctl`, `/proc`, `systemctl`
+
+### Level 2 — Networking (12 built / 25 planned)
+Every SRE should be comfortable debugging packets. [`labs/networking/`](labs/networking)
+
+Tools: `tcpdump`, `ip`, `ss`, `bridge`, `conntrack`, `iptables`/`nftables`, `dig`, `mtr`, `tracepath`
+
+### Level 3 — Storage (0 built / 15 planned)
+LVM full, XFS corruption, ext4 recovery, RAID degraded, slow/failing disks,
+read-only filesystems, inode exhaustion. [`labs/storage/`](labs/storage)
+
+### Level 4 — Databases (1 built / 20 planned)
+Exactly what a DBRE sees. MySQL (replication, GTIDs, deadlocks, slow
+queries, metadata locks, binlog corruption, connection storms) and
+PostgreSQL (replication lag, WAL full, autovacuum, index bloat, lock
+contention). [`labs/mysql/`](labs/mysql) · [`labs/postgres/`](labs/postgres)
+
+### Level 5 — Kubernetes (0 built / 20 planned)
+Pod networking, CoreDNS failure, etcd full, expired certs, stuck PVCs,
+node pressure, CNI failure, broken ingress, API server unavailable.
+[`labs/kubernetes/`](labs/kubernetes)
+
+### Level 6 — Production Incidents (0 built / 20 planned)
+Combines everything above into a single synthetic incident: logs,
+metrics, and a broken environment — no hints, find the root cause.
+[`labs/incidents/`](labs/incidents)
+
+## Status
+
+**30 of ~120 labs are written** (Levels 1, 2, and a first Level 4 seed).
+**None of this has been run end-to-end on a live VM yet** — every command
+was written from careful reasoning about real tool behavior, not from an
+actual test run. Treat it as a first draft to dry-run before recording,
+not verified fact. See [`CONTEXT.md`](CONTEXT.md) for the full list of
+what's flagged as needing a live check.
+
+`check.sh`/`reset.sh` automation is being retrofitted onto the existing
+labs incrementally, starting with Level 1 and 2, before new levels are
+built out.
 
 ## Prerequisites
 - A Linux VM (tested on \[fill in your distro/version\])
 - `iproute2`, `unshare`/`nsenter` (util-linux), root/sudo access
-- Later labs: Docker, containerlab, FRR
+- Level 2 (Networking): Docker + [containerlab](https://containerlab.dev) + FRR
+- Level 4 (Databases): MySQL/MariaDB, Docker + docker-compose for the multi-node labs
