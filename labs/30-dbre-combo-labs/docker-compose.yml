@@ -1,0 +1,68 @@
+services:
+  primary:
+    image: mysql:8.0
+    container_name: lab30-primary
+    command:
+      - --server-id=1
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./data/primary:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  replica:
+    image: mysql:8.0
+    container_name: lab30-replica
+    command:
+      - --server-id=2
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --relay-log=relay-bin
+      - --read-only=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3308:3306"
+    volumes:
+      # NOTE: the replica's real datadir AND the io-hog's scratch space
+      # both live under ./data/replica-disk on the HOST, on purpose — they
+      # need to share the same underlying physical/virtual disk for the
+      # I/O contention to be real. They use different subdirectories so
+      # io-hog never touches MySQL's actual data files.
+      - ./data/replica-disk/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      primary:
+        condition: service_healthy
+
+  io-hog:
+    image: mysql:8.0
+    container_name: lab30-io-hog
+    # Idle by default — setup.sh triggers the actual contention burst with
+    # `docker exec -d lab30-io-hog ...` so it's a bounded, on-demand burst
+    # rather than something that runs forever just because the container
+    # is up.
+    entrypoint: ["sleep", "infinity"]
+    volumes:
+      - ./data/replica-disk/io-hog-scratch:/hogdata
+    depends_on:
+      replica:
+        condition: service_healthy

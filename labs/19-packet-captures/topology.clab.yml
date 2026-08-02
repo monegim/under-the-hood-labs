@@ -1,0 +1,23 @@
+name: pcap-lab
+
+topology:
+  nodes:
+    client:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    r1:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    server:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+
+  links:
+    - endpoints: ["client:eth1", "r1:eth1"]
+    - endpoints: ["r1:eth2", "server:eth1"]

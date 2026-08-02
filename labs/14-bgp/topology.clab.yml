@@ -1,0 +1,29 @@
+name: bgp-lab
+
+topology:
+  nodes:
+    r1:
+      kind: linux
+      image: quay.io/frrouting/frr:latest
+      cap-add:
+        - NET_ADMIN
+      binds:
+        - configs/r1/daemons:/etc/frr/daemons
+    r2:
+      kind: linux
+      image: quay.io/frrouting/frr:latest
+      cap-add:
+        - NET_ADMIN
+      binds:
+        - configs/r2/daemons:/etc/frr/daemons
+    r3:
+      kind: linux
+      image: quay.io/frrouting/frr:latest
+      cap-add:
+        - NET_ADMIN
+      binds:
+        - configs/r3/daemons:/etc/frr/daemons
+
+  links:
+    - endpoints: ["r1:eth1", "r2:eth1"]
+    - endpoints: ["r2:eth2", "r3:eth1"]

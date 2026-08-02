@@ -1,0 +1,18 @@
+name: firewalls
+
+topology:
+  nodes:
+    client:
+      kind: linux
+      image: nicolaka/netshoot:latest
+    fw:
+      kind: linux
+      image: nicolaka/netshoot:latest
+      privileged: true
+    server:
+      kind: linux
+      image: nicolaka/netshoot:latest
+
+  links:
+    - endpoints: ["client:eth1", "fw:eth1"]
+    - endpoints: ["fw:eth2", "server:eth1"]
