@@ -1,0 +1,23 @@
+services:
+  primary:
+    image: postgres:16
+    container_name: lab32-primary
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: appdb
+      # Puts pg_wal on its own directory (PGDATA/pg_wal becomes a symlink
+      # to it) so we can bind-mount a small, bounded disk under it instead
+      # of letting WAL share the main data volume.
+      POSTGRES_INITDB_ARGS: "--waldir=/pgwal"
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./data/pgdata:/var/lib/postgresql/data
+      # Bind-mounted onto a small loop-mounted filesystem by setup.sh —
+      # see setup.sh/README for why this needs to be a bounded disk.
+      - ./data/wal-disk:/pgwal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

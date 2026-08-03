@@ -1,0 +1,23 @@
+services:
+  auth:
+    build: ./auth
+    container_name: incident03-auth
+    # Deliberately tiny, like lab 16 (too-many-open-files) - stands in
+    # for a real container's default nofile limit being lower than a
+    # leaking process needs to survive for long.
+    ulimits:
+      nofile:
+        soft: 50
+        hard: 50
+    ports:
+      - "8000:8000"
+
+  orders:
+    build: ./orders
+    container_name: incident03-orders
+    environment:
+      AUTH_URL: "http://auth:8000"
+    ports:
+      - "8001:8001"
+    depends_on:
+      - auth

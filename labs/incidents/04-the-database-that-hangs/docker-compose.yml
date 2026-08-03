@@ -1,0 +1,55 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: incident04-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # Bind-mounted from a subdirectory of ./data/disk - a SIBLING of
+      # backup-job's scratch directory below. Both live on the same
+      # underlying host filesystem/disk on purpose: that's what makes
+      # the I/O contention real instead of simulated.
+      - ./data/disk/mysql:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: ./app
+    container_name: incident04-app
+    environment:
+      DB_HOST: mysql
+      DB_USER: appuser
+      DB_PASSWORD: apppass
+      DB_NAME: appdb
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  backup-job:
+    image: alpine:3.20
+    container_name: incident04-backup-job
+    command: >
+      sh -c "
+      while true; do
+        for w in 1 2 3 4; do
+          ( dd if=/dev/zero of=/scratch/hog-$$w.dat bs=1M count=128 conv=fdatasync 2>/dev/null ) &
+        done
+        wait
+      done
+      "
+    volumes:
+      # SIBLING of mysql's datadir above - same host disk, different
+      # subdirectory. This container never touches MySQL's actual data
+      # files, only the disk underneath them.
+      - ./data/disk/backup-scratch:/scratch
