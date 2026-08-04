@@ -25,16 +25,17 @@ roughly 120 labs total once complete.
 
 ## Levels
 
-### Level 1 — Linux Basics (17 built / 20 planned)
+### Level 1 — Linux Basics (21 built / 21 planned) ✅
 Not "how to use `ps`" — how Linux actually works under a real incident.
 Split into two halves: **foundations** (build the underlying mechanism
 yourself — namespaces, cgroups, overlayfs, a container from scratch,
-eBPF) and **troubleshooting** (a simulated production incident per lab).
+eBPF) and **troubleshooting** (a simulated production incident per lab,
+including strace/ltrace, boot failures, zombie processes, clock drift).
 [`labs/linux/`](labs/linux)
 
 Tools: `ps`, `top`/`htop`, `vmstat`, `iostat`, `strace`, `lsof`, `journalctl`, `/proc`, `systemctl`
 
-### Level 2 — Networking (12 built / 25 planned)
+### Level 2 — Networking (25 built / 25 planned) ✅
 Every SRE should be comfortable debugging packets. [`labs/networking/`](labs/networking)
 
 Tools: `tcpdump`, `ip`, `ss`, `bridge`, `conntrack`, `iptables`/`nftables`, `dig`, `mtr`, `tracepath`
@@ -64,11 +65,17 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**63 of ~120 labs are written** (all of Levels 1-3 seeded/complete for
-their current scope, both MySQL and Postgres in Level 4, Level 5
-complete for its planned 9, and a 5-incident seed for Level 6).
-Every lab across every level now has full `setup.sh`/`check.sh`/`reset.sh`
-automation.
+**80 of ~120 labs are written.** Levels 1 (Linux Basics) and 2
+(Networking) are now fully built out for their current scope — 21/21 and
+25/25 respectively. Level 3 (Storage) is seeded at 7 labs, Level 4
+(Databases) has both MySQL (8/8) and Postgres (5/5) complete for their
+current scope, Level 5 (Kubernetes) is complete for its planned 9, and
+Level 6 (Incidents) has a 5-incident seed.
+
+Every lab across every level now has full `check.sh`/`reset.sh`
+automation. Most labs also have `setup.sh`; the containerlab-based
+networking labs (03 onward) instead build the "before" state live via
+the README's own steps, matching that sub-format's existing convention.
 
 **None of this has been run end-to-end on a live VM yet** — every command
 was written from careful reasoning about real tool behavior, not from an
@@ -79,10 +86,10 @@ genuinely low-confidence (exact `dm-flakey` argument syntax, `kind`+etcd
 quota behavior, a couple of timing-sensitive PostgreSQL challenges) and
 worth prioritizing in a dry run.
 
-Remaining to reach ~120: Level 1 (3 more Linux Basics topics), Level 2
-(13 more networking topics), Level 3 (inode exhaustion is intentionally
-skipped here — already covered in Level 1), Level 4 (7 more topics across
-both databases), Level 5 (11 more topics), Level 6 (15 more incidents).
+Remaining to reach ~120: Level 3 (Storage, more topics beyond the current
+7), Level 4 (7 more topics across both databases), Level 5 (11 more
+topics), Level 6 (15 more incidents). Levels 1 and 2 are done for now —
+their original target counts (20 and 25) have been met.
 
 ## Prerequisites
 - A Linux VM (tested on \[fill in your distro/version\])

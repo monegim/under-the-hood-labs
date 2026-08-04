@@ -1,0 +1,42 @@
+name: asym-routing
+
+topology:
+  nodes:
+    client:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    switch-a:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    r1:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    r2:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    switch-b:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    server:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+
+  links:
+    - endpoints: ["client:eth1", "switch-a:eth1"]
+    - endpoints: ["r1:eth1", "switch-a:eth2"]
+    - endpoints: ["r2:eth1", "switch-a:eth3"]
+    - endpoints: ["r1:eth2", "switch-b:eth1"]
+    - endpoints: ["r2:eth2", "switch-b:eth2"]
+    - endpoints: ["server:eth1", "switch-b:eth3"]

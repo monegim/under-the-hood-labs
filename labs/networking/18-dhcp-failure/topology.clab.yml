@@ -1,0 +1,17 @@
+name: dhcp-lab
+
+topology:
+  nodes:
+    client:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    dhcp-server:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+
+  links:
+    - endpoints: ["client:eth1", "dhcp-server:eth1"]

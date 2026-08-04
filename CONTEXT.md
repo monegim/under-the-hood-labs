@@ -39,22 +39,28 @@ and current build counts.
 - `check.sh` — verifies the incident/challenge is currently resolved
 - `reset.sh` — restores the broken state so you can retry
 
-**All of the above is now true for every one of the 63 labs currently in
-the repo** — the check.sh/reset.sh retrofit and the full build-out of
-Levels 3-6 are both complete as of 2026-08-03.
+**All of the above is now true for every one of the 80 labs currently in
+the repo.** Levels 1 and 2 are now complete for their originally-planned
+scope (21/21 and 25/25) as of 2026-08-04.
 
-## Directory structure (current) — 63 labs total
+## Directory structure (current) — 80 labs total
 ```
 labs/
-  linux/        Level 1 — 17 labs (01-07 foundations: build-it-yourself
-                 namespaces/cgroups/container/overlayfs/k8s-internals/eBPF;
-                 08-17 troubleshooting: slow server, D-state, OOM+MySQL,
-                 disk/inode full, service-won't-start, log-partition-full,
-                 deleted-open-file, CPU steal time, too-many-open-files,
-                 permissions-vs-ACLs)
-  networking/   Level 2 — 12 labs (bridge, VLANs, static routing, NAT,
-                 firewalls, OSPF, BGP, GRE, VXLAN, IPsec, MTU, packet
-                 captures) — containerlab + FRR
+  linux/        Level 1 — 21 labs, COMPLETE (01-07 foundations:
+                 build-it-yourself namespaces/cgroups/container/overlayfs/
+                 k8s-internals/eBPF; 08-21 troubleshooting: slow server,
+                 D-state, OOM+MySQL, disk/inode full, service-won't-start,
+                 log-partition-full, deleted-open-file, CPU steal time,
+                 too-many-open-files, permissions-vs-ACLs, strace/ltrace,
+                 boot failure, zombie/orphaned processes, clock drift)
+  networking/   Level 2 — 25 labs, COMPLETE (01-02 plain netns/bridge;
+                 03-12 containerlab + FRR: static routing, NAT, firewalls,
+                 OSPF, BGP, GRE, VXLAN, IPsec, MTU, packet captures; 13-19
+                 containerlab: broken DNS, TCP retransmissions, SYN flood,
+                 asymmetric routing, conntrack exhaustion, DHCP failure,
+                 ARP issues; 20-25 mixed containerlab/plain-netns: NAT port
+                 exhaustion, STP loop, LACP bonding failure, BGP route
+                 flapping, IPv6 dual-stack issues, TLS handshake failure)
   storage/      Level 3 — 7 labs (LVM full, XFS corruption, ext4 recovery,
                  RAID degraded, slow disks, simulated NVMe failure,
                  filesystem read-only) — loop devices + device-mapper,
@@ -90,12 +96,91 @@ docker-compose depending on the lab. Level 5 needs Docker + `kind` +
 `kubectl`. Level 6 needs Docker + docker-compose (+ containerlab for one).
 
 ## Where things stand
-All 63 labs (30 original + 33 built 2026-08-03 across Storage, Postgres,
-Kubernetes, the MySQL remainder, and Incidents) were drafted by parallel
+80 labs total (30 original + 33 built 2026-08-03 across Storage, Postgres,
+Kubernetes, the MySQL remainder, and Incidents + 4 more Linux Basics labs
+and 13 more networking labs built 2026-08-04) were drafted by parallel
 background agents, each given: a complete reference lab to read first
-(usually `labs/linux/11-disk-full-writes-fail`), a strict format spec,
-and a pre-vetted resource pool for `CONCEPTS.md` to prevent fabricated
+(usually `labs/linux/11-disk-full-writes-fail`, or for the 2026-08-04
+networking batch, `labs/networking/01-linux-bridge` + `03-static-routing`
++ `07-bgp` + `12-packet-captures`), a strict format spec, and a
+pre-vetted resource pool for `CONCEPTS.md` to prevent fabricated
 book/site/YouTube citations.
+
+**2026-08-04 — Level 1 completed (linux/18-21 added):** strace/ltrace
+deep dive, boot failure (GRUB/initramfs), zombie/orphaned processes,
+clock drift (NTP/chrony). Lab 21 was written directly by the
+orchestrating session after its assigned agent failed 3 times in a row
+with connection errors right at that lab's docs — the scripts
+(setup.sh/check.sh/reset.sh) had already been written successfully by
+the agent before it kept failing, so only README.md/solution.md/
+CONCEPTS.md needed to be added manually, matching what those scripts
+actually do.
+
+**2026-08-04 — Level 2 completed (networking/13-25 added):**
+networking/13-19 (broken DNS, TCP retransmissions, SYN flood, asymmetric
+routing, conntrack exhaustion, DHCP failure, ARP issues) and
+networking/20-25 (NAT port exhaustion, STP loop, LACP bonding failure,
+BGP route flapping, IPv6 dual-stack issues, TLS handshake failure),
+bringing Level 2 to 25/25 — its full originally-planned scope. 13-19 are
+containerlab-based with `debian:bookworm-slim` + `cap-add: NET_ADMIN`
+(no `setup.sh` — matching Labs 3-12's convention of building the "before"
+state live via the README's own steps + `reset.sh`, not a separate
+script). Two labs introduce a pattern not used elsewhere in this repo: a
+"switch" node that's just Lab 1's `ip link ... type bridge` technique
+running inside its own containerlab node with 3+ ports enslaved, used
+to put more than two containerlab nodes on one shared L2 segment
+(`16-asymmetric-routing` needs this twice, for a diamond topology with
+two parallel routers; `19-arp-issues` needs it once, for two servers and
+a client sharing a broadcast domain so ARP/gratuitous-ARP behavior is
+observable). This avoids depending on containerlab's own `bridge`/
+`ovs-bridge` node kinds, which would need a pre-existing host bridge or
+OVS and weren't used anywhere else in this repo — the Lab-1-technique
+approach was chosen specifically to stay consistent with an
+already-validated pattern instead of introducing an unverified one.
+Low-confidence spots specific to this batch, worth a live check:
+- `15-syn-flood` — assumes Docker's default capability set (not the
+  explicit `cap-add: NET_ADMIN`) already includes `NET_RAW`, which is
+  what lets `hping3` open a raw socket without an additional explicit
+  `cap-add: NET_RAW`. Believed correct (Docker's documented default
+  capability list includes `NET_RAW`), not exercised live.
+- `16-asymmetric-routing` — the whole lab depends on
+  `net.netfilter.nf_conntrack_tcp_loose=0` making conntrack classify an
+  unsolicited SYN-ACK (or, in Challenge B, a bare ACK after only the SYN
+  was seen) as `INVALID` rather than adopting it. The lab sets this
+  sysctl explicitly to force determinism, but the exact classification
+  behavior in Challenge B specifically (does a strict conntrack drop a
+  final ACK when it already has a NEW-state entry from seeing the SYN,
+  just not the SYN-ACK?) was reasoned from general conntrack state-machine
+  behavior, not verified against kernel source or a live test. Second
+  highest priority to verify in this batch.
+- `17-conntrack-exhaustion` — the exact `conntrack -S` field names
+  (`insert_failed`, `drop`, etc.) and the kernel log line `nf_conntrack:
+  table full, dropping packet` are written from memory/experience, not
+  verified against a specific kernel version's actual output.
+- `18-dhcp-failure` — the dnsmasq lease-file format
+  (`<expiry-epoch> <mac> <ip> <hostname> <client-id>`) used to pre-seed
+  phantom leases for Challenge A is written from memory, not verified
+  against a live dnsmasq instance or its source.
+- `13-broken-dns`, `14-tcp-retransmissions`, `19-arp-issues` — the
+  `dnsmasq`/`tc netem`/`ss -ti retrans:`/`arping -U` syntax used in each
+  is standard and believed correct, but none of it has been run live.
+- `21-stp-loop` — exact `bridge -d link show`/`brctl showstp` port-state
+  text format across kernel/iproute2 versions, and default STP
+  convergence timing assumptions, not verified live. Challenge B's
+  assumption about how a `stp_state=0` bridge handles reserved BPDU
+  multicast addresses was reasoned from bridge driver internals, not
+  tested.
+- `22-lacp-bonding-failure` — exact `/proc/net/bonding/bond0` field
+  names/formatting (e.g. "Actor Churn State") may vary by kernel version;
+  general structure is solid.
+- `23-bgp-route-flapping` — exact FRR `bgp dampening <half-life> <reuse>
+  <suppress> <max-suppress>` parameter bounds/syntax, whether `clear bgp
+  dampening` exists as written, and exact `show bgp dampening
+  dampened-paths` output, not verified against a live FRR instance.
+- `25-tls-handshake-failure` — exact OpenSSL alert error-string
+  formatting varies between OpenSSL 1.1.1 and 3.x; the `ssl_ciphers` vs
+  `ssl_conf_command Ciphersuites` split for nginx/TLS 1.3 is believed
+  correct but unexercised live.
 
 **None of this has been run end-to-end on a live VM.** Every lab was
 written from careful reasoning about real tool behavior, not from an
@@ -130,7 +215,7 @@ instead of delegated to agents. No further violations have occurred.
 2. Decide recording order.
 3. Once dry-run-validated, keep expanding each level toward its full
    target count (see the "Remaining to reach ~120" note in the root
-   README) — 3 more Linux Basics, 13 more networking, 7 more databases,
+   README) — 3 more Linux Basics, 6 more networking, 7 more databases,
    11 more Kubernetes, 15 more incidents. Storage's target was revised
    down from 15 to effectively 7 (inode exhaustion intentionally
    deduplicated against Level 1) unless more storage topics come up.

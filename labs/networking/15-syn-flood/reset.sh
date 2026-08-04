@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Lab 15 (SYN Flood) — destroys and redeploys the topology, then re-runs
-# the README's Steps 1-3 live config (package install, addressing, and a
-# fresh listener) — none of this is baked into the topology file. Leaves
-# the victim in the unhardened "before" state (syncookies off, small
-# backlog) matching Step 2, ready for Step 4's flood.
+# the README's Steps 1-6 live config (package install, addressing, a
+# fresh listener, and the hardened end state) — none of this is baked
+# into the topology file. Leaves the victim in the healthy end-of-Steps
+# state (syncookies ON, no flood running) — the two challenges each
+# re-disable syncookies deliberately to set up their own scenario.
 set -uo pipefail
 
 LAB="syn-flood"
@@ -46,8 +47,8 @@ docker exec "$ATTACKER" pkill hping3 2>/dev/null || true
 docker exec "$VICTIM" pkill -f "python3" 2>/dev/null || true
 sleep 1
 
-echo "[reset] building the unhardened 'before' state on victim..."
-docker exec "$VICTIM" sysctl -w net.ipv4.tcp_syncookies=0
+echo "[reset] restoring the healthy end-of-Steps state on victim (syncookies ON)..."
+docker exec "$VICTIM" sysctl -w net.ipv4.tcp_syncookies=1
 docker exec "$VICTIM" sysctl -w net.ipv4.tcp_max_syn_backlog=128
 
 echo "[reset] starting a fresh listener on victim:8080..."
@@ -70,5 +71,5 @@ else
   echo "[reset] WARNING: baseline connect failed, check manually"
 fi
 
-echo "[reset] done (victim is in the unhardened 'before' state — syncookies off)."
-echo "[reset] Run ./check.sh to verify health (will fail until syncookies is re-enabled)."
+echo "[reset] done (victim is hardened — syncookies on, no flood running)."
+echo "[reset] Run ./check.sh to verify health."
