@@ -1,0 +1,15 @@
+name: tls-lab
+
+topology:
+  nodes:
+    client:
+      kind: linux
+      image: nicolaka/netshoot:latest
+    proxy:
+      kind: linux
+      image: nginx:latest
+      cap-add:
+        - NET_ADMIN
+
+  links:
+    - endpoints: ["client:eth1", "proxy:eth1"]

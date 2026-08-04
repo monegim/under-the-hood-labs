@@ -1,0 +1,23 @@
+name: broken-dns
+
+topology:
+  nodes:
+    client:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    resolver:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    upstream:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+
+  links:
+    - endpoints: ["client:eth1", "resolver:eth1"]
+    - endpoints: ["resolver:eth2", "upstream:eth1"]

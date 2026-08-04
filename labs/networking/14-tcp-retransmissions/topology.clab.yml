@@ -1,0 +1,17 @@
+name: tcp-retrans
+
+topology:
+  nodes:
+    client:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    server:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+
+  links:
+    - endpoints: ["client:eth1", "server:eth1"]

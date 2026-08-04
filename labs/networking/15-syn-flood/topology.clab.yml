@@ -1,0 +1,17 @@
+name: syn-flood
+
+topology:
+  nodes:
+    attacker:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+    victim:
+      kind: linux
+      image: debian:bookworm-slim
+      cap-add:
+        - NET_ADMIN
+
+  links:
+    - endpoints: ["attacker:eth1", "victim:eth1"]
