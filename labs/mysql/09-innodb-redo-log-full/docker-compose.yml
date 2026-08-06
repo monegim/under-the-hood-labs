@@ -1,0 +1,23 @@
+services:
+  primary:
+    image: mysql:8.0
+    container_name: lab09-primary
+    command:
+      - --server-id=1
+      # Deliberately tiny redo log capacity (8MB is the documented minimum
+      # for innodb_redo_log_capacity, MySQL 8.0.30+). A real production
+      # instance would never run this small — this is the fault being
+      # injected, not a realistic default.
+      - --innodb-redo-log-capacity=8388608
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3309:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

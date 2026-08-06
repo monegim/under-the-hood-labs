@@ -1,0 +1,81 @@
+name: Lint labs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shell-syntax:
+    name: Shell syntax (bash -n + shellcheck errors)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash -n on every script
+        run: |
+          fail=0
+          while IFS= read -r -d '' f; do
+            if ! bash -n "$f" 2>err.log; then
+              echo "::error file=$f::$(cat err.log)"
+              fail=1
+            fi
+          done < <(find labs -name '*.sh' -print0)
+          rm -f err.log
+          exit "$fail"
+
+      - name: shellcheck (errors only, style warnings ignored)
+        run: |
+          fail=0
+          while IFS= read -r -d '' f; do
+            if ! shellcheck -S error "$f"; then
+              fail=1
+            fi
+          done < <(find labs -name '*.sh' -print0)
+          exit "$fail"
+
+  executable-bit:
+    name: Scripts are executable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check chmod +x on every script
+        run: |
+          fail=0
+          while IFS= read -r -d '' f; do
+            if [ ! -x "$f" ]; then
+              echo "::error file=$f::not executable — run chmod +x"
+              fail=1
+            fi
+          done < <(find labs -name '*.sh' -print0)
+          exit "$fail"
+
+  lab-structure:
+    name: Required files present per lab
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: verify README/solution/CONCEPTS/check/reset exist
+        run: |
+          fail=0
+          for dir in labs/*/*/; do
+            for req in README.md solution.md CONCEPTS.md check.sh reset.sh; do
+              if [ ! -f "${dir}${req}" ]; then
+                echo "::error::missing ${req} in ${dir}"
+                fail=1
+              fi
+            done
+          done
+          exit "$fail"
+
+  internal-links:
+    name: Internal markdown links resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check relative links point at real files
+        run: python3 .github/scripts/check_internal_links.py
