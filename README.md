@@ -1,10 +1,21 @@
 # Under the Hood — SRE/DBRE Troubleshooting Labs
 
+[![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Labs](https://img.shields.io/badge/labs-84%2F~120-blue)
+
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
 break it on purpose, diagnose it with the same tools you'd use in a real
 incident, then read a postmortem that explains not just the fix but *why*
 it happened and why the obvious fix often doesn't work.
+
+If you like [sadservers.com](https://sadservers.com) (realistic broken
+boxes you diagnose from scratch) or
+[labs.iximiuz.com](https://labs.iximiuz.com) (build the real mechanism
+yourself instead of memorizing commands), this is built in that spirit —
+free, offline, and run entirely on your own VM. No sandboxed browser
+terminal, no subscription: clone it, build it, break it, fix it.
 
 Structured like a game: six levels, increasing in scope and difficulty,
 roughly 120 labs total once complete.
@@ -46,11 +57,12 @@ simulated failing drive, filesystems the kernel flips read-only on its
 own. Everything built on disposable loop devices — nothing touches a
 real disk. [`labs/storage/`](labs/storage)
 
-### Level 4 — Databases (13 built / 20 planned)
+### Level 4 — Databases (17 built / 20 planned)
 Exactly what a DBRE sees. MySQL (replication lag, GTID conflicts,
 deadlocks, slow queries, metadata locks, disk full, binlog corruption,
-connection storms — 8/8) and PostgreSQL (replication lag, WAL full,
-autovacuum, index bloat, lock contention — 5/5).
+connection storms, InnoDB redo log full, semi-sync timeout, partition
+pruning failure, ProxySQL misrouting — 12/12) and PostgreSQL (replication
+lag, WAL full, autovacuum, index bloat, lock contention — 5/5).
 [`labs/mysql/`](labs/mysql) · [`labs/postgres/`](labs/postgres)
 
 ### Level 5 — Kubernetes (9 built / 20 planned)
@@ -65,11 +77,11 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**80 of ~120 labs are written.** Levels 1 (Linux Basics) and 2
-(Networking) are now fully built out for their current scope — 21/21 and
+**84 of ~120 labs are written.** Levels 1 (Linux Basics) and 2
+(Networking) are fully built out for their current scope — 21/21 and
 25/25 respectively. Level 3 (Storage) is seeded at 7 labs, Level 4
-(Databases) has both MySQL (8/8) and Postgres (5/5) complete for their
-current scope, Level 5 (Kubernetes) is complete for its planned 9, and
+(Databases) is complete for its current scope — MySQL (12/12) and
+Postgres (5/5) — Level 5 (Kubernetes) is complete for its planned 9, and
 Level 6 (Incidents) has a 5-incident seed.
 
 Every lab across every level now has full `check.sh`/`reset.sh`
@@ -86,10 +98,17 @@ genuinely low-confidence (exact `dm-flakey` argument syntax, `kind`+etcd
 quota behavior, a couple of timing-sensitive PostgreSQL challenges) and
 worth prioritizing in a dry run.
 
-Remaining to reach ~120: Level 3 (Storage, more topics beyond the current
-7), Level 4 (7 more topics across both databases), Level 5 (11 more
-topics), Level 6 (15 more incidents). Levels 1 and 2 are done for now —
-their original target counts (20 and 25) have been met.
+Remaining to reach ~120: Level 3 (8 more Storage topics), Level 4 (3 more
+across both databases), Level 5 (11 more Kubernetes topics), Level 6
+(15 more incidents). Levels 1 and 2 are done for now — their original
+target counts (21 and 25) have been met.
+
+## Contributing
+
+This is a solo project with a lot of open labs left to build (see
+"Remaining to reach ~120" above) — contributions welcome. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the exact format every lab
+needs to follow before opening a PR.
 
 ## Prerequisites
 - A Linux VM (tested on \[fill in your distro/version\])
