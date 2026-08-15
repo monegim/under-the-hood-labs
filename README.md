@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-84%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-86%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -36,13 +36,14 @@ roughly 120 labs total once complete.
 
 ## Levels
 
-### Level 1 — Linux Basics (21 built / 21 planned) ✅
+### Level 1 — Linux Basics (23 built / 21 planned) ✅
 Not "how to use `ps`" — how Linux actually works under a real incident.
 Split into two halves: **foundations** (build the underlying mechanism
 yourself — namespaces, cgroups, overlayfs, a container from scratch,
 eBPF) and **troubleshooting** (a simulated production incident per lab,
-including strace/ltrace, boot failures, zombie processes, clock drift).
-[`labs/linux/`](labs/linux)
+including strace/ltrace, boot failures, zombie processes, clock drift,
+and shell-toolkit labs on awk/sed log forensics and xargs/history bulk
+operations). [`labs/linux/`](labs/linux)
 
 Tools: `ps`, `top`/`htop`, `vmstat`, `iostat`, `strace`, `lsof`, `journalctl`, `/proc`, `systemctl`
 
@@ -77,9 +78,10 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**84 of ~120 labs are written.** Levels 1 (Linux Basics) and 2
-(Networking) are fully built out for their current scope — 21/21 and
-25/25 respectively. Level 3 (Storage) is seeded at 7 labs, Level 4
+**86 of ~120 labs are written.** Levels 1 (Linux Basics) and 2
+(Networking) are past their original target counts — 23/21 and 25/25
+respectively (Level 1 grew by 2 to add a shell-toolkit pair: awk/sed log
+forensics and xargs/history bulk operations). Level 3 (Storage) is seeded at 7 labs, Level 4
 (Databases) is complete for its current scope — MySQL (12/12) and
 Postgres (5/5) — Level 5 (Kubernetes) is complete for its planned 9, and
 Level 6 (Incidents) has a 5-incident seed.
