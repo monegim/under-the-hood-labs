@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-103%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-104%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -36,7 +36,7 @@ roughly 120 labs total once complete.
 
 ## Levels
 
-### Level 1 — Linux Basics (24 built / 21 planned) ✅
+### Level 1 — Linux Basics (25 built / 21 planned) ✅
 Not "how to use `ps`" — how Linux actually works under a real incident.
 Split into two halves: **foundations** (build the underlying mechanism
 yourself — namespaces, cgroups, overlayfs, a container from scratch,
@@ -82,7 +82,7 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**103 of ~120 labs are written.** Levels 1 (Linux Basics, 24/21) and 2
+**104 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21) and 2
 (Networking, 25/25) are past/at their original target counts. Level 3
 (Storage) is at 12/15, Level 4 (Databases) is complete for its current
 scope — MySQL (12/12) and Postgres (5/5) — Level 5 (Kubernetes) is at
