@@ -247,6 +247,48 @@ live rather than guessed. `labs/kubernetes/README.md`'s lab index was
 also found stale (only listed labs 01-09 even though 10-14/16-18 were
 already built in an earlier session) and was rebuilt to list all 19.
 
+**2026-08-16 — MySQL deepened to 15/12 (deliberately past original target):**
+the user is becoming a DBRE with a MySQL focus specifically and asked
+for more labs to build that skill — added `mysql/13-history-list-length-purge-lag`,
+`14-primary-failure-manual-promotion`, and
+`15-proxysql-connection-pool-exhaustion`, chosen to fill real gaps
+(purge/undo internals, failover/promotion, connection pooling) rather
+than overlap the existing 12. Built directly and run end-to-end against
+live Docker containers. Real findings along the way: a `CREATE PROCEDURE`
+inside a `mysql -e` multi-statement string needs an explicit `DELIMITER
+//` wrapper or it fails with a syntax error at the first internal
+semicolon (lab 13); InnoDB's `Innodb_history_list_length` is not a
+`SHOW GLOBAL STATUS` variable in MySQL 8.0 — it's only in `SHOW ENGINE
+INNODB STATUS`'s free text, or `information_schema.INNODB_METRICS`
+(`trx_rseg_history_len`), and the metrics-table value visibly lags the
+INNODB STATUS text by tens of seconds, so check.sh parses the STATUS
+text instead; purge catch-up after removing a blocker took anywhere
+from 5 to 90+ seconds in this environment, so lab 13's check.sh polls
+rather than checking once; a bare `SELECT 1` inside `BEGIN; SELECT 1;`
+does NOT establish an InnoDB read view (no table touched), so it's not
+a purge blocker at all — this invalidated an early draft of lab 13's
+Challenge B and was caught by testing before it shipped; purge is
+bounded specifically by the single *oldest* open read view, not "any"
+open transaction — killing a newer, more plausible-looking blocker
+first was confirmed live to do nothing for a full 90 seconds while the
+older one remained; the official `mysql:8.0` image briefly restarts
+(temp init server → real server) right after Docker's healthcheck first
+reports healthy, and a command issued in that exact window fails with
+"Can't connect to local MySQL server through socket" — lab 14's
+setup.sh now sleeps 5s after the healthcheck loop to avoid the race
+(this is a latent risk in every other Docker-based lab in this repo
+that uses the same healthcheck pattern, not yet audited/fixed
+elsewhere); promoting the wrong (stale) replica and later trying to
+merge it with the ahead replica produces a real, verified
+`AUTO_INCREMENT` primary-key collision (`Duplicate entry '3' for key
+'orders.PRIMARY'`), not a hypothetical; and ProxySQL's admin user
+(`-h proxysql` from another container) gets `"User 'admin' can only
+connect locally"` — the admin interface has to be reached via `docker
+exec` into the ProxySQL container itself, connecting to `127.0.0.1` —
+which means `mysql/12-proxysql-routing-failure`'s already-shipped
+setup.sh (which uses the `-h proxysql` form from the primary container)
+is very likely broken and unverified; worth a follow-up fix.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

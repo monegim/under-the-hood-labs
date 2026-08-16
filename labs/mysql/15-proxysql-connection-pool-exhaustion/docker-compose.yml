@@ -1,0 +1,29 @@
+services:
+  primary:
+    image: mysql:8.0
+    container_name: lab15-primary
+    command:
+      - --server-id=1
+      - --max-connections=100
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3317:3306"
+    volumes:
+      - ./data/primary:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  proxysql:
+    image: proxysql/proxysql:latest
+    container_name: lab15-proxysql
+    ports:
+      - "6033:6033"
+      - "6032:6032"
+    depends_on:
+      primary:
+        condition: service_healthy
