@@ -1,0 +1,76 @@
+# checkout-api, revision 1 - known-good baseline. setup.sh applies this
+# first and confirms it's actually serving real /checkout requests before
+# ever touching v2, so the reader starts from a state that genuinely
+# worked, not one that was broken from the first line of setup.sh.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-api
+  labels:
+    app: checkout-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: checkout-api
+  template:
+    metadata:
+      labels:
+        app: checkout-api
+        rollout-version: v1
+    spec:
+      containers:
+        - name: checkout-api
+          image: python:3.11-slim
+          command:
+            - sh
+            - -c
+            - "pip install --quiet --no-cache-dir flask psycopg2-binary && python3 /app/app.py"
+          env:
+            - name: DB_HOST
+              value: postgres
+            - name: DB_USER
+              value: checkout
+            - name: DB_PASSWORD
+              value: chkout_pw
+            - name: DB_NAME
+              value: checkoutdb
+            - name: APP_VERSION
+              value: v1
+          ports:
+            - containerPort: 8080
+          # The readiness/liveness probe hitting the app's own /healthz -
+          # which never touches Postgres (see app/app.py). This is the
+          # gap the incident lives in: it stays identical between v1 and
+          # v2, so it can't catch what v2 breaks.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 3
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: app-code
+              mountPath: /app
+      volumes:
+        - name: app-code
+          configMap:
+            name: checkout-api-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-api
+spec:
+  selector:
+    app: checkout-api
+  ports:
+    - port: 80
+      targetPort: 8080

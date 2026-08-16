@@ -1,0 +1,81 @@
+# checkout-api, revision 2 - "bundle the DB_PASSWORD rotation into the
+# same PR as the response-format tweak, it's a one-line change." That
+# one line has a typo: the env var is named DB_PASSWROD, not DB_PASSWORD.
+# Kubernetes has no way to know that's wrong - it's a perfectly valid
+# environment variable name, it just isn't the one app.py reads
+# (os.environ.get("DB_PASSWORD", "")), so every v2 pod starts with an
+# *empty* DB password instead of the real one. Postgres itself was never
+# touched - "chkout_pw" is still its actual password the whole time.
+#
+# This is applied on top of the same Deployment/Service names as v1, so
+# `kubectl apply` triggers a real rolling update, not a fresh object.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-api
+  labels:
+    app: checkout-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: checkout-api
+  template:
+    metadata:
+      labels:
+        app: checkout-api
+        rollout-version: v2
+    spec:
+      containers:
+        - name: checkout-api
+          image: python:3.11-slim
+          command:
+            - sh
+            - -c
+            - "pip install --quiet --no-cache-dir flask psycopg2-binary && python3 /app/app.py"
+          env:
+            - name: DB_HOST
+              value: postgres
+            - name: DB_USER
+              value: checkout
+            - name: DB_PASSWROD   # <- typo: app.py reads DB_PASSWORD
+              value: chkout_pw
+            - name: DB_NAME
+              value: checkoutdb
+            - name: APP_VERSION
+              value: v2
+          ports:
+            - containerPort: 8080
+          # Unchanged from v1 - still shallow, still never checks
+          # Postgres connectivity. Every v2 pod passes this immediately.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 3
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: app-code
+              mountPath: /app
+      volumes:
+        - name: app-code
+          configMap:
+            name: checkout-api-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-api
+spec:
+  selector:
+    app: checkout-api
+  ports:
+    - port: 80
+      targetPort: 8080

@@ -1,0 +1,93 @@
+services:
+  primary:
+    image: mysql:8.0
+    container_name: incident11-primary
+    command:
+      - --server-id=1
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/primary:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  replica:
+    image: mysql:8.0
+    container_name: incident11-replica
+    command:
+      - --server-id=2
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --relay-log=relay-bin
+      - --read-only=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3307:3306"
+    volumes:
+      # NOTE: the replica's real datadir and reporting-job's scratch space
+      # both live under ./data/replica-disk on the HOST, as SIBLING
+      # subdirectories, on purpose - they share the same underlying disk so
+      # the I/O contention (and the replication lag it causes) is real, the
+      # same trick as incident 04 and labs/mysql/01.
+      - ./data/replica-disk/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      primary:
+        condition: service_healthy
+
+  reporting-job:
+    image: alpine:3.20
+    container_name: incident11-reporting-job
+    # An unrelated "nightly reporting export" job that writes large files to
+    # its own scratch directory - it never opens a MySQL file and has no
+    # idea a database replica's datadir shares its disk. Runs permanently,
+    # same pattern as incident 04's backup-job.
+    command: >
+      sh -c "
+      while true; do
+        for w in 1 2 3 4; do
+          ( dd if=/dev/zero of=/scratch/export-$$w.dat bs=1M count=96 conv=fdatasync 2>/dev/null ) &
+        done
+        wait
+        sleep 1
+      done
+      "
+    volumes:
+      - ./data/replica-disk/reporting-scratch:/scratch
+
+  app:
+    build: ./app
+    container_name: incident11-app
+    environment:
+      PRIMARY_HOST: primary
+      REPLICA_HOST: replica
+      DB_USER: root
+      DB_PASSWORD: rootpass
+      DB_NAME: appdb
+      # This is the bug: GET /note reads from the replica by default, on the
+      # (false) assumption that replication is synchronous. Set to "primary"
+      # to apply the fix.
+      READS_FROM: replica
+    ports:
+      - "8080:8080"
+    depends_on:
+      replica:
+        condition: service_healthy
