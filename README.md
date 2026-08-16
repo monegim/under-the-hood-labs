@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-111%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-114%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -63,13 +63,14 @@ read-only on its own, NFS stale mounts, swap exhaustion, I/O scheduler
 misconfiguration. Everything built on disposable loop devices — nothing
 touches a real disk. [`labs/storage/`](labs/storage)
 
-### Level 4 — Databases (17 built / 20 planned)
+### Level 4 — Databases (20 built / 20 planned) ✅
 Exactly what a DBRE sees. MySQL (replication lag, GTID conflicts,
 deadlocks, slow queries, metadata locks, disk full, binlog corruption,
 connection storms, InnoDB redo log full, semi-sync timeout, partition
 pruning failure, ProxySQL misrouting — 12/12) and PostgreSQL (replication
-lag, WAL full, autovacuum, index bloat, lock contention — 5/5).
-[`labs/mysql/`](labs/mysql) · [`labs/postgres/`](labs/postgres)
+lag, WAL full, autovacuum, index bloat, lock contention, connection
+pooler exhaustion, transaction ID wraparound, logical replication
+conflicts — 8/8). [`labs/mysql/`](labs/mysql) · [`labs/postgres/`](labs/postgres)
 
 ### Level 5 — Kubernetes (17 built / 20 planned)
 Pod networking, CoreDNS failure, etcd full, expired certs, stuck PVCs,
@@ -86,32 +87,40 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**111 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
-(Networking, 29/25), and 3 (Storage, 15/15) are past/at their original
-target counts. Level 4 (Databases) is complete for its current scope —
-MySQL (12/12) and Postgres (5/5) — Level 5 (Kubernetes) is at 17/20, and
-Level 6 (Incidents) is at 8/20.
+**114 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
+(Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 20/20) are
+past/at their target counts — MySQL (12/12) and Postgres (8/8). Level 5
+(Kubernetes) is at 17/20, and Level 6 (Incidents) is at 8/20.
 
 Every lab across every level has full `check.sh`/`reset.sh` automation.
 Most labs also have `setup.sh`; the containerlab-based networking labs
 (03 onward) instead build the "before" state live via the README's own
 steps, matching that sub-format's existing convention.
 
-**None of this has been run end-to-end on a live VM yet** — every command
-was written from careful reasoning about real tool behavior (a few labs
+**Most of this has not been run end-to-end on a live VM yet** — commands
+were written from careful reasoning about real tool behavior (a few labs
 were partially verified locally where practical — e.g. the awk/sed log
 forensics lab's core pipelines, the tmux session-persistence mechanism —
 but not the full labs end to end). Treat it as a first draft to dry-run
-before recording, not verified fact. See [`CONTEXT.md`](CONTEXT.md) for
-the full list of what's flagged as needing a live check — a few items
-are flagged as genuinely low-confidence (exact `dm-flakey` argument
-syntax, `kind`+etcd quota behavior, a couple of timing-sensitive
-PostgreSQL challenges) and worth prioritizing in a dry run.
+before recording, not verified fact. The three newest PostgreSQL labs
+(`06-connection-pooler-exhaustion`, `07-transaction-id-wraparound-emergency`,
+`08-logical-replication-conflict`) are the exception — every command in
+all three was actually run against live Docker containers while writing
+them, which caught and fixed several real bugs a read-through wouldn't
+have (a `psql -c` multi-statement string silently wrapping `COMMIT`
+inside a procedure in an implicit transaction, `docker exec` dropping a
+heredoc's stdin without `-i`, `autovacuum_freeze_max_age` rejecting
+values below Postgres's actual hard minimum, and `ALTER SYSTEM` losing
+to a command-line-pinned GUC). See [`CONTEXT.md`](CONTEXT.md) for the
+full list of what's flagged as needing a live check — a few items are
+flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
+`kind`+etcd quota behavior, a couple of timing-sensitive PostgreSQL
+challenges in the original five Postgres labs) and worth prioritizing in
+a dry run.
 
-Remaining to reach ~120: Level 4 (3 more across both databases), Level 5
-(3 more Kubernetes topics), Level 6 (12 more incidents). Levels 1, 2,
-and 3 are done for now — their original
-target counts (21, 25, and 15) have been met — Level 2 grew further
+Remaining to reach ~120: Level 5 (3 more Kubernetes topics), Level 6 (12
+more incidents). Levels 1, 2, 3, and 4 are done for now — their original
+target counts (21, 25, 15, and 20) have been met — Level 2 grew further
 still to add a dedicated `iptables` mechanics set.
 
 ## Contributing

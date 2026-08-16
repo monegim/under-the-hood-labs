@@ -1,0 +1,38 @@
+services:
+  primary:
+    image: postgres:16
+    container_name: pglab7-primary
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: appdb
+    # autovacuum_freeze_max_age lowered to Postgres's actual hard minimum
+    # (100000 — the docs' own valid range is 100000..2000000000; the real
+    # default is 200,000,000) so this lab can reach the threshold with
+    # ~110k transactions instead of hundreds of millions — see
+    # CONCEPTS.md for why this is an honest simulation, not a shortcut
+    # that changes the mechanism. autovacuum is OFF server-wide (default;
+    # override with AUTOVACUUM=on), matching how a real wraparound
+    # emergency actually happens in production — not one table opting out
+    # (which a forced anti-wraparound autovacuum would silently fix on its
+    # own) but autovacuum being disabled entirely, usually during a
+    # migration/bulk-load and never re-enabled. Set here as a command-line
+    # flag (not postgresql.conf) on purpose — see Challenge A.
+    command:
+      - "postgres"
+      - "-c"
+      - "autovacuum=${AUTOVACUUM:-off}"
+      - "-c"
+      - "autovacuum_freeze_max_age=100000"
+      - "-c"
+      - "autovacuum_naptime=5s"
+      - "-c"
+      - "log_autovacuum_min_duration=0"
+    ports:
+      - "5440:5432"
+    volumes:
+      - ./data/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

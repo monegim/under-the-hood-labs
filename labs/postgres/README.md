@@ -1,6 +1,6 @@
 # Level 4 — Databases: PostgreSQL
 
-Five hands-on PostgreSQL incidents, each a real docker-compose environment
+Eight hands-on PostgreSQL incidents, each a real docker-compose environment
 with an induced fault, not a quiz. Same DBRE instinct as the
 [MySQL half of this level](../mysql): reproduce the incident, diagnose it
 from first principles using Postgres's own system views, fix it, then work
@@ -30,6 +30,21 @@ have a different root cause.
    open transaction holds a row lock and blocks everything behind it.
    `pg_stat_activity`, `pg_blocking_pids()`, `pg_terminate_backend()`, and
    `idle_in_transaction_session_timeout` as prevention.
+6. [`06-connection-pooler-exhaustion`](06-connection-pooler-exhaustion) —
+   PgBouncer's own pool fills up while Postgres itself sits nearly idle.
+   `SHOW POOLS`/`SHOW CLIENTS` on the pooler as the diagnostic layer
+   `pg_stat_activity` alone can't see, `pool_mode` as the correctness
+   decision underneath it.
+7. [`07-transaction-id-wraparound-emergency`](07-transaction-id-wraparound-emergency) —
+   autovacuum disabled server-wide lets `age(relfrozenxid)` cross
+   `autovacuum_freeze_max_age` with nothing left to catch it. Manual
+   `VACUUM FREEZE` as the immediate fix, and why `ALTER SYSTEM` +
+   `pg_reload_conf()` can't undo a command-line-pinned setting.
+8. [`08-logical-replication-conflict`](08-logical-replication-conflict) —
+   a single duplicate-key conflict halts an entire logical replication
+   subscription, not just the offending row. `pg_stat_subscription` as the
+   diagnostic, resolving the conflict vs. `ALTER SUBSCRIPTION ... SKIP`'s
+   data-loss tradeoff.
 
 ## Prerequisites
 

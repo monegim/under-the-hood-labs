@@ -199,6 +199,28 @@ before recording, roughly ordered by how worried to be:
 - `linux/04-build-your-own-container` and `linux/05-overlay-filesystems` — their `check.sh`/`reset.sh` originally used `$HOME` for paths, which breaks under `sudo` (resets to `/root`); this was caught and fixed with a `SUDO_USER`/`getent passwd` resolution during the same agent run, but the fix itself hasn't been tested live.
 - `linux/06-kubernetes-internals` (`kind` version pin, kube-proxy default mode), `linux/07-ebpf-basics` (bpftrace `args.field` vs `args->field` syntax version-dependent), `networking/*` (containerlab `frr` image tag, `/etc/frr/daemons` enable-daemon mechanism), `linux/09-process-stuck-in-d-state` (loopback-NFS D-state reproduction, kernel/rpcbind-version dependent), `linux/10-oom-killer-mysql` (cgroup-v2 OOM timing may need per-VM tuning), `mysql/01-replication-lag-io-contention` (docker-compose + I/O-contention setup) — carried over from the original 30-lab batch, still unverified.
 
+**2026-08-16 — Level 4 (Databases) completed, Postgres 8/8:** added
+`postgres/06-connection-pooler-exhaustion`, `07-transaction-id-wraparound-emergency`,
+and `08-logical-replication-conflict`, built directly (not via background
+agent) and run end-to-end against live Docker containers rather than
+written from reasoning alone — this caught and fixed several real bugs
+that a read-through wouldn't have: a `psql -c` multi-statement string
+implicitly wraps everything in one transaction, so `COMMIT` inside a
+`CALL`-ed procedure in the same string fails with "invalid transaction
+termination" (CREATE PROCEDURE and CALL now split into separate `-c`
+invocations, in labs 06 and 07 both); `docker exec ... sh -c "cat > file"
+<<HEREDOC` silently writes an empty file without `-i` attaching stdin
+(lab 06's client-flood loop); connecting through PgBouncer via `-h
+127.0.0.1` needs `PGPASSWORD` set (no trust auth over TCP, unlike the
+primary's local socket) — missing everywhere in lab 06 originally;
+`autovacuum_freeze_max_age` has a hard minimum of 100000, so the
+originally-drafted `5000` would have crashed Postgres on startup (lab
+07); and `autovacuum` set via a command-line `-c` flag outranks `ALTER
+SYSTEM` + `pg_reload_conf()` in Postgres's config-precedence order, which
+became lab 07's Challenge A instead of a bug once found. All three labs'
+main flows and both challenges each were re-run against real containers
+after fixes, not just syntax-checked.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat
@@ -215,7 +237,5 @@ instead of delegated to agents. No further violations have occurred.
 2. Decide recording order.
 3. Once dry-run-validated, keep expanding each level toward its full
    target count (see the "Remaining to reach ~120" note in the root
-   README) — 3 more Linux Basics, 6 more networking, 7 more databases,
-   11 more Kubernetes, 15 more incidents. Storage's target was revised
-   down from 15 to effectively 7 (inode exhaustion intentionally
-   deduplicated against Level 1) unless more storage topics come up.
+   README) — Levels 1-4 are now done for their target counts; 3 more
+   Kubernetes, 12 more incidents remain.
