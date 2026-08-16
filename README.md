@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-104%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-107%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -52,12 +52,13 @@ Every SRE should be comfortable debugging packets. [`labs/networking/`](labs/net
 
 Tools: `tcpdump`, `ip`, `ss`, `bridge`, `conntrack`, `iptables`/`nftables`, `dig`, `mtr`, `tracepath`
 
-### Level 3 — Storage (12 built / 15 planned)
+### Level 3 — Storage (15 built / 15 planned) ✅
 LVM full/snapshot full, XFS/btrfs corruption, ext4 recovery, RAID
 degraded, slow disks, disk quotas, ZFS pool degraded, Docker storage
 driver bloat, a simulated failing drive, filesystems the kernel flips
-read-only on its own. Everything built on disposable loop devices —
-nothing touches a real disk. [`labs/storage/`](labs/storage)
+read-only on its own, NFS stale mounts, swap exhaustion, I/O scheduler
+misconfiguration. Everything built on disposable loop devices — nothing
+touches a real disk. [`labs/storage/`](labs/storage)
 
 ### Level 4 — Databases (17 built / 20 planned)
 Exactly what a DBRE sees. MySQL (replication lag, GTID conflicts,
@@ -82,11 +83,11 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**104 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21) and 2
-(Networking, 25/25) are past/at their original target counts. Level 3
-(Storage) is at 12/15, Level 4 (Databases) is complete for its current
-scope — MySQL (12/12) and Postgres (5/5) — Level 5 (Kubernetes) is at
-17/20, and Level 6 (Incidents) is at 8/20.
+**107 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
+(Networking, 25/25), and 3 (Storage, 15/15) are past/at their original
+target counts. Level 4 (Databases) is complete for its current scope —
+MySQL (12/12) and Postgres (5/5) — Level 5 (Kubernetes) is at 17/20, and
+Level 6 (Incidents) is at 8/20.
 
 Every lab across every level has full `check.sh`/`reset.sh` automation.
 Most labs also have `setup.sh`; the containerlab-based networking labs
@@ -104,10 +105,10 @@ are flagged as genuinely low-confidence (exact `dm-flakey` argument
 syntax, `kind`+etcd quota behavior, a couple of timing-sensitive
 PostgreSQL challenges) and worth prioritizing in a dry run.
 
-Remaining to reach ~120: Level 3 (3 more Storage topics), Level 4 (3
-more across both databases), Level 5 (3 more Kubernetes topics), Level 6
-(12 more incidents). Levels 1 and 2 are done for now — their original
-target counts (21 and 25) have been met.
+Remaining to reach ~120: Level 4 (3 more across both databases), Level 5
+(3 more Kubernetes topics), Level 6 (12 more incidents). Levels 1, 2,
+and 3 are done for now — their original
+target counts (21, 25, and 15) have been met.
 
 ## Contributing
 

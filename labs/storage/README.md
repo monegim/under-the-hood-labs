@@ -29,12 +29,43 @@ reach for on a real host. Nothing touches a real disk or partition.
 7. [`07-filesystem-read-only`](07-filesystem-read-only) — a filesystem
    the kernel flips read-only on its own after a write error; why
    `mount -o remount,rw` alone often just flips back.
+8. [`08-lvm-snapshot-full`](08-lvm-snapshot-full) — an LVM COW snapshot
+   running out of allocated space as the origin volume changes, going
+   Invalid; why undersized snapshots are a common backup-strategy
+   mistake.
+9. [`09-disk-quota-exceeded`](09-disk-quota-exceeded) — a user/group
+   hitting their filesystem quota with plenty of disk space still free;
+   `repquota`/`quota -u` to distinguish this from real disk-full or
+   inode exhaustion.
+10. [`10-zfs-pool-degraded`](10-zfs-pool-degraded) — a ZFS pool running
+    DEGRADED after a vdev member fails; `zpool status`, `zpool scrub`,
+    replacing a device.
+11. [`11-btrfs-corruption`](11-btrfs-corruption) — btrfs's built-in data
+    checksumming catching corruption ext4/xfs would silently miss;
+    `btrfs scrub`/`btrfs check`; why self-healing needs redundancy this
+    single-device demo doesn't have.
+12. [`12-docker-storage-driver-bloat`](12-docker-storage-driver-bloat) —
+    dangling images, stopped containers, and unused volumes filling
+    `/var/lib/docker`; `docker system df` to see what's reclaimable;
+    the real difference between plain `prune` and `-a --volumes`.
+13. [`13-nfs-stale-mount`](13-nfs-stale-mount) — a loopback NFS export
+    swapped out from under a client, producing a genuine "Stale file
+    handle"; `hard` vs `soft` mounts; `umount -f` vs `umount -l`.
+14. [`14-swap-exhaustion`](14-swap-exhaustion) — a dedicated swapfile
+    filled completely inside a memory-limited cgroup, OOM-killing a
+    process even though system RAM looks fine; why `vm.swappiness`
+    can't fix an already-full swap.
+15. [`15-io-scheduler-misconfiguration`](15-io-scheduler-misconfiguration) —
+    the active I/O scheduler (not raw disk speed) deciding whether a
+    latency-sensitive writer survives contention with a background hog;
+    `none` vs `bfq`/`mq-deadline`; why `ionice` does nothing under `none`.
 
 ## Prerequisites
-- Linux VM, `sudo` access
+- Linux VM, `sudo` access, cgroup v2 (labs 14-15)
 - `lvm2`, `xfsprogs`, `e2fsprogs`, `mdadm`, `sysstat`, `fio`,
-  `smartmontools`, `dmsetup` (part of `device-mapper`) — each lab's
-  `setup.sh` installs what it needs if missing
+  `smartmontools`, `dmsetup` (part of `device-mapper`), `zfsutils-linux`,
+  `btrfs-progs`, `quota`, `nfs-kernel-server`/`nfs-common`, `docker` —
+  each lab's `setup.sh` installs what it needs if missing
 - `losetup`, `dd` (part of `util-linux`/`coreutils`, present by default)
 
 Each lab follows the same format as [Level 1](../linux) and
