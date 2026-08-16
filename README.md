@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-107%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-111%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -47,8 +47,11 @@ operations, and tmux session persistence). [`labs/linux/`](labs/linux)
 
 Tools: `ps`, `top`/`htop`, `vmstat`, `iostat`, `strace`, `lsof`, `journalctl`, `/proc`, `systemctl`, `tmux`
 
-### Level 2 — Networking (25 built / 25 planned) ✅
-Every SRE should be comfortable debugging packets. [`labs/networking/`](labs/networking)
+### Level 2 — Networking (29 built / 25 planned) ✅
+Every SRE should be comfortable debugging packets — including a
+dedicated set of `iptables` mechanics labs (rule order/custom chains,
+rules lost on reboot, the IPv4-only-firewall/IPv6-wide-open gap, and
+rate limiting done right). [`labs/networking/`](labs/networking)
 
 Tools: `tcpdump`, `ip`, `ss`, `bridge`, `conntrack`, `iptables`/`nftables`, `dig`, `mtr`, `tracepath`
 
@@ -83,8 +86,8 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**107 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
-(Networking, 25/25), and 3 (Storage, 15/15) are past/at their original
+**111 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
+(Networking, 29/25), and 3 (Storage, 15/15) are past/at their original
 target counts. Level 4 (Databases) is complete for its current scope —
 MySQL (12/12) and Postgres (5/5) — Level 5 (Kubernetes) is at 17/20, and
 Level 6 (Incidents) is at 8/20.
@@ -108,7 +111,8 @@ PostgreSQL challenges) and worth prioritizing in a dry run.
 Remaining to reach ~120: Level 4 (3 more across both databases), Level 5
 (3 more Kubernetes topics), Level 6 (12 more incidents). Levels 1, 2,
 and 3 are done for now — their original
-target counts (21, 25, and 15) have been met.
+target counts (21, 25, and 15) have been met — Level 2 grew further
+still to add a dedicated `iptables` mechanics set.
 
 ## Contributing
 
