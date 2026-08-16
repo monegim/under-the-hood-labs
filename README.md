@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-86%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-103%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -36,27 +36,28 @@ roughly 120 labs total once complete.
 
 ## Levels
 
-### Level 1 — Linux Basics (23 built / 21 planned) ✅
+### Level 1 — Linux Basics (24 built / 21 planned) ✅
 Not "how to use `ps`" — how Linux actually works under a real incident.
 Split into two halves: **foundations** (build the underlying mechanism
 yourself — namespaces, cgroups, overlayfs, a container from scratch,
 eBPF) and **troubleshooting** (a simulated production incident per lab,
 including strace/ltrace, boot failures, zombie processes, clock drift,
-and shell-toolkit labs on awk/sed log forensics and xargs/history bulk
-operations). [`labs/linux/`](labs/linux)
+shell-toolkit labs on awk/sed log forensics and xargs/history bulk
+operations, and tmux session persistence). [`labs/linux/`](labs/linux)
 
-Tools: `ps`, `top`/`htop`, `vmstat`, `iostat`, `strace`, `lsof`, `journalctl`, `/proc`, `systemctl`
+Tools: `ps`, `top`/`htop`, `vmstat`, `iostat`, `strace`, `lsof`, `journalctl`, `/proc`, `systemctl`, `tmux`
 
 ### Level 2 — Networking (25 built / 25 planned) ✅
 Every SRE should be comfortable debugging packets. [`labs/networking/`](labs/networking)
 
 Tools: `tcpdump`, `ip`, `ss`, `bridge`, `conntrack`, `iptables`/`nftables`, `dig`, `mtr`, `tracepath`
 
-### Level 3 — Storage (7 built / 15 planned)
-LVM full, XFS corruption, ext4 recovery, RAID degraded, slow disks, a
-simulated failing drive, filesystems the kernel flips read-only on its
-own. Everything built on disposable loop devices — nothing touches a
-real disk. [`labs/storage/`](labs/storage)
+### Level 3 — Storage (12 built / 15 planned)
+LVM full/snapshot full, XFS/btrfs corruption, ext4 recovery, RAID
+degraded, slow disks, disk quotas, ZFS pool degraded, Docker storage
+driver bloat, a simulated failing drive, filesystems the kernel flips
+read-only on its own. Everything built on disposable loop devices —
+nothing touches a real disk. [`labs/storage/`](labs/storage)
 
 ### Level 4 — Databases (17 built / 20 planned)
 Exactly what a DBRE sees. MySQL (replication lag, GTID conflicts,
@@ -66,43 +67,46 @@ pruning failure, ProxySQL misrouting — 12/12) and PostgreSQL (replication
 lag, WAL full, autovacuum, index bloat, lock contention — 5/5).
 [`labs/mysql/`](labs/mysql) · [`labs/postgres/`](labs/postgres)
 
-### Level 5 — Kubernetes (9 built / 20 planned)
+### Level 5 — Kubernetes (17 built / 20 planned)
 Pod networking, CoreDNS failure, etcd full, expired certs, stuck PVCs,
-node pressure, CNI failure, broken ingress, API server unavailable — all
-on a `kind` cluster. [`labs/kubernetes/`](labs/kubernetes)
+node pressure, CNI failure, broken ingress, API server unavailable,
+kubelet cert rotation, HPA not scaling, resource quotas, admission
+webhooks, StatefulSet PVC mismatch, PDB blocking drain, RBAC
+misconfiguration, probe misconfiguration, taints/tolerations — all on a
+`kind` cluster. [`labs/kubernetes/`](labs/kubernetes)
 
-### Level 6 — Production Incidents (5 built / 20 planned)
+### Level 6 — Production Incidents (8 built / 20 planned)
 Combines two or more mechanisms from Levels 1-5 into a single synthetic
 incident: a realistic on-call page, symptoms only, no hint which
 subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**86 of ~120 labs are written.** Levels 1 (Linux Basics) and 2
-(Networking) are past their original target counts — 23/21 and 25/25
-respectively (Level 1 grew by 2 to add a shell-toolkit pair: awk/sed log
-forensics and xargs/history bulk operations). Level 3 (Storage) is seeded at 7 labs, Level 4
-(Databases) is complete for its current scope — MySQL (12/12) and
-Postgres (5/5) — Level 5 (Kubernetes) is complete for its planned 9, and
-Level 6 (Incidents) has a 5-incident seed.
+**103 of ~120 labs are written.** Levels 1 (Linux Basics, 24/21) and 2
+(Networking, 25/25) are past/at their original target counts. Level 3
+(Storage) is at 12/15, Level 4 (Databases) is complete for its current
+scope — MySQL (12/12) and Postgres (5/5) — Level 5 (Kubernetes) is at
+17/20, and Level 6 (Incidents) is at 8/20.
 
-Every lab across every level now has full `check.sh`/`reset.sh`
-automation. Most labs also have `setup.sh`; the containerlab-based
-networking labs (03 onward) instead build the "before" state live via
-the README's own steps, matching that sub-format's existing convention.
+Every lab across every level has full `check.sh`/`reset.sh` automation.
+Most labs also have `setup.sh`; the containerlab-based networking labs
+(03 onward) instead build the "before" state live via the README's own
+steps, matching that sub-format's existing convention.
 
 **None of this has been run end-to-end on a live VM yet** — every command
-was written from careful reasoning about real tool behavior, not from an
-actual test run. Treat it as a first draft to dry-run before recording,
-not verified fact. See [`CONTEXT.md`](CONTEXT.md) for the full list of
-what's flagged as needing a live check — a few items are flagged as
-genuinely low-confidence (exact `dm-flakey` argument syntax, `kind`+etcd
-quota behavior, a couple of timing-sensitive PostgreSQL challenges) and
-worth prioritizing in a dry run.
+was written from careful reasoning about real tool behavior (a few labs
+were partially verified locally where practical — e.g. the awk/sed log
+forensics lab's core pipelines, the tmux session-persistence mechanism —
+but not the full labs end to end). Treat it as a first draft to dry-run
+before recording, not verified fact. See [`CONTEXT.md`](CONTEXT.md) for
+the full list of what's flagged as needing a live check — a few items
+are flagged as genuinely low-confidence (exact `dm-flakey` argument
+syntax, `kind`+etcd quota behavior, a couple of timing-sensitive
+PostgreSQL challenges) and worth prioritizing in a dry run.
 
-Remaining to reach ~120: Level 3 (8 more Storage topics), Level 4 (3 more
-across both databases), Level 5 (11 more Kubernetes topics), Level 6
-(15 more incidents). Levels 1 and 2 are done for now — their original
+Remaining to reach ~120: Level 3 (3 more Storage topics), Level 4 (3
+more across both databases), Level 5 (3 more Kubernetes topics), Level 6
+(12 more incidents). Levels 1 and 2 are done for now — their original
 target counts (21 and 25) have been met.
 
 ## Contributing
@@ -114,9 +118,9 @@ needs to follow before opening a PR.
 
 ## Prerequisites
 - A Linux VM (tested on \[fill in your distro/version\])
-- `iproute2`, `unshare`/`nsenter` (util-linux), root/sudo access
+- `iproute2`, `unshare`/`nsenter` (util-linux), root/sudo access, `tmux`
 - Level 2 (Networking): Docker + [containerlab](https://containerlab.dev) + FRR
-- Level 3 (Storage): `lvm2`, `xfsprogs`, `e2fsprogs`, `mdadm`, `sysstat`, `fio`, `smartmontools`, `dmsetup`
+- Level 3 (Storage): `lvm2`, `xfsprogs`, `e2fsprogs`, `mdadm`, `sysstat`, `fio`, `smartmontools`, `dmsetup`, `zfsutils-linux`, `btrfs-progs`
 - Level 4 (Databases): MySQL/MariaDB or Docker + docker-compose, depending on the lab
 - Level 5 (Kubernetes): Docker + [`kind`](https://kind.sigs.k8s.io/) + `kubectl`
 - Level 6 (Incidents): Docker + docker-compose, containerlab for one incident
