@@ -221,6 +221,32 @@ became lab 07's Challenge A instead of a bug once found. All three labs'
 main flows and both challenges each were re-run against real containers
 after fixes, not just syntax-checked.
 
+**2026-08-16 — Level 5 (Kubernetes) at 19/20:** added
+`kubernetes/15-rbac-misconfiguration` and `19-image-pull-failure`, built
+directly and run end-to-end against live `kind` clusters (installed
+`kind` via Homebrew for this — it wasn't previously present). Found that
+`bitnami/kubectl` pulls very slowly inside `kind` nodes in this
+environment (2-3+ min, vs. ~40s for a host-level `docker pull` of the
+same image) and switched lab 15's in-cluster reproduction to
+`curlimages/curl` calling the API server directly with the Pod's own
+mounted ServiceAccount token — faster to pull, and the raw JSON API
+response turned out to be a *better* diagnostic than kubectl's formatted
+output (it names the specific missing `Role` by name when a `RoleBinding`
+has a dangling `roleRef`). Also caught a wrong initial assumption before
+it shipped: tested live and confirmed a `Role` (not just `ClusterRole`)
+bound via `RoleBinding` CAN grant access to a cluster-scoped resource
+type like `namespaces` — contrary to a common assumption — so lab 15's
+Challenge B was redesigned around the actually-real distinction (`Role`
+vs. `ClusterRole` controls *what* can be granted; `RoleBinding` vs.
+`ClusterRoleBinding` controls *how broadly*, independently). Lab 19's
+three failure modes (typo'd tag → "not found", unreachable registry host
+→ connection/DNS failure with different wording, and `kind`'s per-node
+image store defeating `imagePullPolicy: Never` without `kind load
+docker-image`) were each reproduced and their exact error text captured
+live rather than guessed. `labs/kubernetes/README.md`'s lab index was
+also found stale (only listed labs 01-09 even though 10-14/16-18 were
+already built in an earlier session) and was rebuilt to list all 19.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat
@@ -237,5 +263,6 @@ instead of delegated to agents. No further violations have occurred.
 2. Decide recording order.
 3. Once dry-run-validated, keep expanding each level toward its full
    target count (see the "Remaining to reach ~120" note in the root
-   README) — Levels 1-4 are now done for their target counts; 3 more
-   Kubernetes, 12 more incidents remain.
+   README) — Levels 1-4 are now done for their target counts; 1 more
+   Kubernetes (`20-scheduler-cannot-place-pod`, directory already
+   scaffolded but empty), 12 more incidents remain.

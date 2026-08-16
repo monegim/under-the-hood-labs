@@ -1,6 +1,6 @@
 # Level 5 — Kubernetes
 
-Nine labs diagnosing real Kubernetes failure modes on a `kind`
+19 labs diagnosing real Kubernetes failure modes on a `kind`
 (Kubernetes in Docker) cluster — not "how do Pods/Services work"
 (that's already covered by
 [`labs/linux/06-kubernetes-internals`](../linux/06-kubernetes-internals),
@@ -48,6 +48,45 @@ fixed / rebuild it from scratch).
    server itself goes down; the one lab where `kubectl` stops working
    and node-level tools (`crictl`, kubelet logs, static pod manifests)
    are all you have.
+10. [`10-hpa-not-scaling`](10-hpa-not-scaling) — a `HorizontalPodAutoscaler`
+    sits forever unable to scale because the cluster has no metrics
+    pipeline at all; fixed by installing `metrics-server` correctly,
+    including the flag `kind` specifically requires.
+11. [`11-resource-quota-exceeded`](11-resource-quota-exceeded) — a
+    namespace `ResourceQuota` blocks a new Pod with `Forbidden`, easily
+    mistaken for an RBAC or syntax problem instead of a used-vs-hard
+    capacity limit.
+12. [`12-admission-webhook-misconfigured`](12-admission-webhook-misconfigured) —
+    a `ValidatingWebhookConfiguration` pointing at the wrong Service, with
+    `failurePolicy: Fail`, blocks every matching API request cluster-wide
+    with a generic connection error.
+13. [`13-statefulset-pvc-mismatch`](13-statefulset-pvc-mismatch) — scaling a
+    `StatefulSet` down and back up reattaches the old PVC (and its data) to
+    the returning Pod, since PVCs aren't deleted on scale-down by default.
+14. [`14-pdb-blocking-drain`](14-pdb-blocking-drain) — a
+    `PodDisruptionBudget` with `minAvailable: 1` correctly blocks
+    `kubectl drain` on a single-replica Deployment's only Pod — the PDB
+    doing its job, not a bug to force through.
+15. [`15-rbac-misconfiguration`](15-rbac-misconfiguration) — a Pod's
+    ServiceAccount with no `Role`/`RoleBinding` fails every API call with
+    `Forbidden`; contrasted with a `RoleBinding` whose `roleRef` silently
+    points at nothing, and a `ClusterRole` whose reach is capped by
+    *where* it's bound, not what it references.
+16. [`16-probe-misconfiguration`](16-probe-misconfiguration) — a
+    `livenessProbe` with timing copy-pasted from a faster service causes
+    kubelet to kill and restart a perfectly healthy, just-occasionally-slow
+    container on a loop.
+17. [`17-taints-tolerations-mismatch`](17-taints-tolerations-mismatch) — a
+    legitimately-tainted node leaves an ordinary Pod stuck `Pending`
+    forever with no error anywhere in the Pod spec itself.
+18. [`18-kubelet-cert-rotation-failure`](18-kubelet-cert-rotation-failure) —
+    kubelet's own client certificate to the API server breaks, and the
+    node goes `NotReady` while the node and kubelet process are both
+    still completely alive underneath.
+19. [`19-image-pull-failure`](19-image-pull-failure) — a typo'd image tag
+    produces `ImagePullBackOff`; contrasted with an unreachable registry
+    host (a DNS/connection failure, not "not found") and `kind`'s
+    separate-per-node image store tripping up `imagePullPolicy: Never`.
 
 ## Prerequisites
 

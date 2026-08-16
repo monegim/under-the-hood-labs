@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-114%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-116%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -72,13 +72,13 @@ lag, WAL full, autovacuum, index bloat, lock contention, connection
 pooler exhaustion, transaction ID wraparound, logical replication
 conflicts — 8/8). [`labs/mysql/`](labs/mysql) · [`labs/postgres/`](labs/postgres)
 
-### Level 5 — Kubernetes (17 built / 20 planned)
+### Level 5 — Kubernetes (19 built / 20 planned)
 Pod networking, CoreDNS failure, etcd full, expired certs, stuck PVCs,
 node pressure, CNI failure, broken ingress, API server unavailable,
 kubelet cert rotation, HPA not scaling, resource quotas, admission
 webhooks, StatefulSet PVC mismatch, PDB blocking drain, RBAC
-misconfiguration, probe misconfiguration, taints/tolerations — all on a
-`kind` cluster. [`labs/kubernetes/`](labs/kubernetes)
+misconfiguration, probe misconfiguration, taints/tolerations, image pull
+failures — all on a `kind` cluster. [`labs/kubernetes/`](labs/kubernetes)
 
 ### Level 6 — Production Incidents (8 built / 20 planned)
 Combines two or more mechanisms from Levels 1-5 into a single synthetic
@@ -87,10 +87,10 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**114 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
+**116 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
 (Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 20/20) are
 past/at their target counts — MySQL (12/12) and Postgres (8/8). Level 5
-(Kubernetes) is at 17/20, and Level 6 (Incidents) is at 8/20.
+(Kubernetes) is at 19/20, and Level 6 (Incidents) is at 8/20.
 
 Every lab across every level has full `check.sh`/`reset.sh` automation.
 Most labs also have `setup.sh`; the containerlab-based networking labs
@@ -111,14 +111,24 @@ have (a `psql -c` multi-statement string silently wrapping `COMMIT`
 inside a procedure in an implicit transaction, `docker exec` dropping a
 heredoc's stdin without `-i`, `autovacuum_freeze_max_age` rejecting
 values below Postgres's actual hard minimum, and `ALTER SYSTEM` losing
-to a command-line-pinned GUC). See [`CONTEXT.md`](CONTEXT.md) for the
+to a command-line-pinned GUC). The two newest Kubernetes labs
+(`15-rbac-misconfiguration`, `19-image-pull-failure`) got the same
+treatment against live `kind` clusters — swapped a slow-pulling
+`bitnami/kubectl` image for a `curl`-plus-mounted-token approach after
+watching it repeatedly stall, and confirmed live that a `RoleBinding`
+accepts a dangling `roleRef` silently, that a `ClusterRole`'s reach is
+capped by whether it's bound via `RoleBinding` vs. `ClusterRoleBinding`
+(not by which role type it references, which was the original, wrong
+assumption), and that `kind load docker-image` is genuinely required —
+a plain `docker build` on the host is invisible to a `kind` node's own
+containerd. See [`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
 `kind`+etcd quota behavior, a couple of timing-sensitive PostgreSQL
 challenges in the original five Postgres labs) and worth prioritizing in
 a dry run.
 
-Remaining to reach ~120: Level 5 (3 more Kubernetes topics), Level 6 (12
+Remaining to reach ~120: Level 5 (1 more Kubernetes topic), Level 6 (12
 more incidents). Levels 1, 2, 3, and 4 are done for now — their original
 target counts (21, 25, 15, and 20) have been met — Level 2 grew further
 still to add a dedicated `iptables` mechanics set.
