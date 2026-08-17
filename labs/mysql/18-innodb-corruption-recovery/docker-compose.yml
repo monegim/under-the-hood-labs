@@ -1,0 +1,20 @@
+services:
+  primary:
+    image: mysql:8.0
+    container_name: lab18-primary
+    command:
+      - --server-id=1
+      - --innodb-file-per-table=ON
+      - --innodb-force-recovery=${FORCE_RECOVERY:-0}
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3319:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

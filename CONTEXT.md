@@ -371,6 +371,55 @@ to become "know when force_recovery can't save you and a restore from
 backup is the only path," which is itself defensible but changes the
 lab's shape significantly from what was originally planned.
 
+**2026-08-17 — `mysql/18-innodb-corruption-recovery` shipped (18/12),
+second attempt at this topic:** the previous session's attempt at an
+InnoDB corruption lab was abandoned after `dd`-overwriting 512 bytes of
+a page with pure random data reliably crashed `mysqld` unrecoverably,
+even at `innodb_force_recovery=6`. This session retried with a much
+gentler fault — corrupting only the page's 4-byte checksum field,
+leaving every actual row byte intact — and it worked cleanly: crashes
+without `innodb_force_recovery`, fully recovers (all rows, verified via
+`CHECKSUM TABLE`) at the lowest level (`1`). Real findings from
+extensive live testing:
+- `docker-compose.yml`'s primary service takes `--innodb-force-recovery=${FORCE_RECOVERY:-0}`,
+  matching the env-var-override pattern from labs 06/15 — the fix is
+  `docker compose stop primary && FORCE_RECOVERY=1 docker compose up -d primary`,
+  no raw `docker run` needed.
+- `innodb_force_recovery > 0` blocks all writes (`INSERT`, and anything
+  implying one like `CREATE TABLE ... AS SELECT`) with a clean
+  `ERROR 1881`, but does NOT block `DROP TABLE` — confirmed by direct
+  testing, not assumed from docs. This became Challenge B: the full
+  recovery has to cross a server restart (dump while still in recovery
+  mode → copy the dump to the host, since the container gets recreated
+  → restart clean → copy the dump back in → restore) because writing the
+  salvaged data back requires being fully out of recovery mode.
+- A genuinely corrupted row (not just checksum) still crashes at
+  `innodb_force_recovery=1` and `=4`. At the maximum level (`6`), it did
+  NOT crash — but `SELECT COUNT(*)` and an actual `SELECT id FROM
+  orders` enumeration returned two different, both-wrong numbers, and
+  the raw id list included a nonsense value no `AUTO_INCREMENT` could
+  have produced. This became Challenge A: force_recovery=6 not crashing
+  is not evidence of a successful recovery, and cross-checking two
+  different query shapes against each other is the only way to catch it
+  without an independent backup to compare against.
+- An originally-planned Challenge A ("binary-search the bad id range,
+  then salvage everything outside it with a single `WHERE id < x OR id
+  > y` query") was tested repeatedly and found **not reliably
+  reproducible** — the exact same query against what should have been
+  identical corrupted state sometimes returned instantly, sometimes hung
+  indefinitely (with `SHOW PROCESSLIST` showing queries stuck
+  `executing` for minutes, never crashing or completing), depending on
+  whether the server had already crashed once against that exact
+  corrupted page in the current container's lifetime. This was dropped
+  rather than shipped as an unreliable "expected exact output" exercise
+  — the corrupted-row-content scenario was kept, but reframed around the
+  force_recovery=6 silent-wrong-data finding instead, which reproduced
+  reliably every time it was tested.
+- Confirmed `mysqldump --master-data=2`/`mysqlbinlog`-adjacent findings
+  from lab 17 generalize: the official `mysql:8.0` image's minimal
+  Oracle-Linux-based userland lacks `which`, and `innochecksum` isn't
+  present either (checked directly via `ls`, not inferred).
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

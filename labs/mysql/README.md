@@ -1,6 +1,6 @@
 # Level 4 — Databases: MySQL
 
-Seventeen hands-on MySQL/InnoDB incidents, each a real environment with an
+Eighteen hands-on MySQL/InnoDB incidents, each a real environment with an
 induced fault, not a quiz. Same DBRE instinct as the
 [Postgres half of this level](../postgres): reproduce the incident,
 diagnose it from first principles using MySQL's own system views and
@@ -65,10 +65,15 @@ identical on the surface but have a different root cause.
 17. [`17-point-in-time-recovery`](17-point-in-time-recovery) — recovering
     from a `DELETE` with no `WHERE` clause using a full backup plus
     binary log replay, stopped at the exact position before the mistake.
+18. [`18-innodb-corruption-recovery`](18-innodb-corruption-recovery) — a
+    single page's on-disk checksum stops matching its content, crashing
+    `mysqld` outright; recovered with `innodb_force_recovery`, including
+    why its highest level can return silently wrong data instead of
+    crashing at all.
 
 ## Prerequisites
 
-- Docker + the `docker compose` plugin for labs 1-2, 7, 9-17
+- Docker + the `docker compose` plugin for labs 1-2, 7, 9-18
 - A Linux host with `sudo`/apt access for labs 3-6, 8 (these install
   `mysql-server` directly rather than using Docker — each README says
   exactly what's needed)
