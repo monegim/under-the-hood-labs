@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-128%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-129%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -88,19 +88,19 @@ misconfiguration, probe misconfiguration, taints/tolerations, image pull
 failures, scheduler unable to place a Pod — all on a `kind` cluster.
 [`labs/kubernetes/`](labs/kubernetes)
 
-### Level 6 — Production Incidents (9 built / 20 planned)
+### Level 6 — Production Incidents (10 built / 20 planned)
 Combines two or more mechanisms from Levels 1-5 into a single synthetic
 incident: a realistic on-call page, symptoms only, no hint which
 subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**128 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
+**129 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
 (Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 28/20) are
 past their target counts — MySQL (20/12, deliberately grown well past
 target for deeper DBRE coverage) and Postgres (8/8). Level 5
 (Kubernetes) has just reached its target count at 20/20. Level 6
-(Incidents) is at 9/20.
+(Incidents) is at 10/20.
 
 Every lab across every level has full `check.sh`/`reset.sh` automation.
 Most labs also have `setup.sh`; the containerlab-based networking labs
@@ -219,7 +219,20 @@ free-space-map file — confirmed live by watching identical signup
 traffic succeed cleanly before exhaustion and fail deterministically
 (at the same row count, run after run) once exhaustion came first;
 `setup.sh` now polls real signup traffic until a write actually fails,
-rather than assuming a fixed request count gets there. See
+rather than assuming a fixed request count gets there.
+`08-the-ipv6-only-timeouts` combines two existing single-mechanism
+networking labs (a half-broken dual-stack path, and `iptables`/`ip6tables`
+being independently-maintained rule sets) into one incident, verified
+live on a real `enable_ipv6: true` Docker network — confirmed a plain
+`requests.post(..., timeout=5)` call reliably reproduces "hang on the
+dropped IPv6 candidate, then fall back to IPv4 and succeed" with the
+total request time landing at 5.01–5.05s across many repeated runs,
+consistent enough to check against a fixed threshold; separately
+confirmed live that `ping6` succeeding and a TCP connect to the same
+address's app port succeeding are genuinely independent facts — an
+`ip6tables -j DROP` rule left ICMPv6 fully working while every
+connection attempt to the app's port silently hung for the full
+client timeout instead of failing fast. See
 [`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
@@ -227,7 +240,7 @@ flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
 challenges in the original five Postgres labs) and worth prioritizing in
 a dry run.
 
-Remaining to reach ~120: Level 6 (11 more incidents). Levels 1-5 are
+Remaining to reach ~120: Level 6 (10 more incidents). Levels 1-5 are
 done for now — their original target counts (21, 25, 15, 20, and 20)
 have all been met — Level 2 grew further still to add a dedicated
 `iptables` mechanics set, and Level 4 grew further to deepen MySQL

@@ -638,6 +638,68 @@ project (`06-the-rollout-that-lied`, `11-the-vanishing-changes`,
 pass, along with their actual environment prerequisites (`kind` for
 06, a plain VM with no containers for 16).
 
+**2026-08-17 (later still, part 2) — Level 6 (Incidents) grew to
+10/20: `08-the-ipv6-only-timeouts` added, fully live-Docker-verified.
+Also fixed a real bug in `labs/incidents/README.md`'s own incident
+list, introduced in the previous session's edit.**
+
+The README bug: the previous session added entries for incidents 06,
+07, 11, and 16 to `labs/incidents/README.md`'s numbered list, but
+wrote them using literal markdown ordered-list markers (`8.`, `9.`)
+continuing the sequence from `7.` — which point at incidents 11 and
+16, not incidents 8 and 9. Since most markdown renderers (including
+GitHub's) ignore the literal number typed for non-first items in one
+continuous ordered list and just auto-increment, this rendered
+correctly as "8." and "9." on the page while linking to
+`11-the-vanishing-changes` and `16-the-flatlined-dashboard` -
+misleading given the directory names don't match the visible list
+numbers, and actively wrong the moment a real `08-...`/`09-...`
+incident gets added later, since editors reading the source `.md`
+file would see `8.`/`9.` typed next to the wrong incidents. Fixed by
+switching the entire list to `-` bullets, so incident numbers only
+ever appear once, unambiguously, in the link text/directory name
+itself, with no renderer-dependent auto-numbering involved at all.
+
+`08-the-ipv6-only-timeouts`: deliberately combines two already-built,
+single-mechanism Level 2 networking labs -
+`networking/24-ipv6-dual-stack-issues` (half-broken IPv6 being worse
+than fully absent, Happy Eyeballs) and `networking/28-iptables-ipv6-gap`
+(`iptables`/`ip6tables` as two independently-maintained rule sets) -
+into one incident. Built and verified on a real dual-stack Docker
+network (`enable_ipv6: true`, explicit `ipv4_address`/`ipv6_address`
+per service in `docker-compose.yml`, confirmed to work directly on
+Docker 29.7.2 / Compose v5.3.1 with no daemon-wide legacy `--ipv6`
+flag needed). Confirmed live, step by step, before writing any docs:
+
+- Docker's embedded DNS returns both an AAAA and an A record for a
+  dual-stack service name, IPv6 first (`socket.getaddrinfo()` output
+  checked directly).
+- `ip6tables -A INPUT -p tcp --dport <port> -j DROP` inside a
+  container (needs `cap_add: [NET_ADMIN]`) produces a genuine silent
+  drop — confirmed via `nc -zv` timing out at exactly the configured
+  wait, `ping`/ICMPv6 to the same address continuing to succeed
+  instantly the whole time, and a plain `curl -6` hanging for the
+  full `--max-time` before failing — a categorically different result
+  from `curl -4` to the same service, which succeeds in ~2ms.
+- The actual application-level mechanism needed a live check rather
+  than an assumption: does a plain `requests.post(url, timeout=N)`
+  call (no custom Happy-Eyeballs logic, nothing special) actually
+  recover via IPv4 after the IPv6 candidate times out, or does the
+  whole request just fail once its timeout budget is spent on the
+  first (IPv6) candidate? Confirmed via 5 repeated live runs: total
+  request time lands at 5.01–5.05s every time (never fails outright),
+  meaning Python's standard-library connection code applies the
+  *remaining* timeout budget to the next `getaddrinfo()` candidate
+  rather than a fresh timeout per candidate — reliable and precise
+  enough to build `check.sh`'s fixed-threshold check around directly,
+  with no flakiness observed across the verification runs.
+- Two unrelated local port conflicts were hit and resolved without
+  touching the conflicting containers: host port 8000 was already
+  bound by an unrelated `manjeniq-dev` container (this lab's frontend
+  moved to host port 8090), matching the same kind of pre-existing
+  local-service collision handled for lab 07's Postgres port earlier
+  the same day.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

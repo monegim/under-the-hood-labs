@@ -1,0 +1,41 @@
+services:
+  backend:
+    build: ./backend
+    container_name: incident08-backend
+    cap_add:
+      - NET_ADMIN
+    networks:
+      appnet:
+        ipv4_address: 172.30.0.10
+        ipv6_address: fd08::10
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8080),2)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build: ./frontend
+    container_name: incident08-frontend
+    networks:
+      appnet:
+        ipv4_address: 172.30.0.20
+        ipv6_address: fd08::20
+    ports:
+      - "8090:8000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  # A dual-stack network - the same setup any real Docker/Kubernetes
+  # host with IPv6 enabled has by default. backend is reachable by
+  # both an IPv4 and an IPv6 address, and Docker's embedded DNS
+  # returns BOTH records (AAAA first) for a plain lookup of "backend" -
+  # exactly what makes this incident possible.
+  appnet:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+        - subnet: fd08::/64
