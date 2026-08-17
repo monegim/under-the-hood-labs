@@ -573,6 +573,71 @@ error text, unrelated root cause" lesson. The fix (scaling the filler
 deployment down) was confirmed to let `webapp` schedule with no change
 to its own manifest at all.
 
+**2026-08-17 (later still) — Level 6 (Incidents) grew to 9/20:
+`07-the-database-with-room-to-spare` added, fully live-Docker-verified,
+design revised twice mid-build after live testing contradicted the
+original assumption.**
+
+Scenario: signups fail while a disk-usage dashboard shows plenty of
+free space, because an unrelated per-request logger exhausts a shared
+filesystem's *inodes* (not bytes) that Postgres's data directory also
+lives on. Mechanism chosen deliberately to portably reproduce "df -h
+fine, writes fail" without a privileged loopback ext4 filesystem (used
+elsewhere in the repo, e.g. `linux/11-disk-full-writes-fail`): a
+Docker Compose named volume with `driver_opts: {type: tmpfs, device:
+tmpfs, o: "size=256m,nr_inodes=3000"}`, shared between the `postgres`
+and `request-logger` containers via a common mount point, PGDATA set
+to a subdirectory of it. Confirmed live this reproduces the exact
+`df -h`/`df -i` split intended: bytes usage stays under 25% throughout
+while inode usage climbs to 100%.
+
+The first design assumption — "once inodes are exhausted, ordinary
+signup traffic through the app will start failing" — did NOT hold up
+under live testing and required real investigation to fix. Root cause:
+extending an already-open file (ordinary row growth in an existing
+heap file) does not need a new inode at all; only *creating* a new
+file does. Under light, steady single-row `/signup` traffic, Postgres
+almost never needs to create a new file — WAL segments get recycled
+(renamed, not created) as long as an old one is available, and a
+table's free-space-map (`_fsm`) file is only created once, when the
+table first crosses a small page-count threshold. Confirmed live: 100
+sequential signups before inode exhaustion, then 30 more sequential
+signups after exhaustion, all succeeded with HTTP 200 — the incident
+did not reproduce at all under that design. A direct 50,000-row bulk
+`INSERT` via `psql` (run purely to investigate, not shipped) did
+reliably fail with `could not create file "base/16384/16386_fsm": No
+space left on device`, isolating the real trigger: table growth that
+crosses the fsm-creation threshold specifically *while* inodes are
+already exhausted, not steady-state traffic in general. Confirmed via
+a genuinely clean run (fresh `reset.sh`, no manual bulk insert) that
+ordinary sequential `/signup` traffic *does* reliably trigger this
+once enough of it accumulates after exhaustion — deterministically at
+request #137, identically across multiple independent `reset.sh` runs.
+`setup.sh` was rewritten around this: bring the stack up, wait for
+`request-logger` to fully exhaust inodes first (confirmed via `df -i`
+polling), *then* drive real `/signup` traffic in a loop until a write
+actually fails (capped at 400 attempts, erroring loudly if none do,
+rather than assuming a fixed count), so the incident is verified
+live-broken by the time setup.sh exits rather than merely
+probably-broken.
+
+Also fixed along the way: a Postgres `POSTGRES_INITDB_ARGS:
+"--wal-segsize=1"` tweak was tried first (suspecting WAL segment
+rollover was the trigger) and left in place since it doesn't hurt, but
+was confirmed via live testing to NOT be what actually causes the
+reliable failure — the fsm-file creation is. A port conflict
+(`5432` already bound by an unrelated local `manjeniq-dev-db`
+container) was caught before any lab file was written and the
+Postgres host port was moved to `5470` instead, avoiding any
+interference with unrelated local project.
+
+`labs/incidents/README.md`'s incident list was also missing entries
+for three already-built-and-committed incidents from earlier in this
+project (`06-the-rollout-that-lied`, `11-the-vanishing-changes`,
+`16-the-flatlined-dashboard`) — added them alongside `07` in this same
+pass, along with their actual environment prerequisites (`kind` for
+06, a plain VM with no containers for 16).
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

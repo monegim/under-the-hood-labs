@@ -59,12 +59,26 @@ scratch).
 5. [`05-the-restart-that-doesnt-help`](05-the-restart-that-doesnt-help) -
    a stuck service that `systemctl restart` can't fix, twice - which
    turns out to be the diagnostic clue itself.
+6. [`06-the-rollout-that-lied`](06-the-rollout-that-lied) - a Kubernetes
+   rollout reports complete success, every pod `Running` and `1/1
+   Ready`, while checkout is actually broken for real users.
+7. [`07-the-database-with-room-to-spare`](07-the-database-with-room-to-spare) -
+   signups fail intermittently while the database's disk-usage
+   dashboard shows plenty of free space, because bytes and inodes are
+   two different budgets and only one of them is exhausted.
+8. [`11-the-vanishing-changes`](11-the-vanishing-changes) - saved
+   changes silently revert minutes later, with no errors anywhere, for
+   no reproducible reason.
+9. [`16-the-flatlined-dashboard`](16-the-flatlined-dashboard) - real
+   customer-facing slowness with a service dashboard that shows
+   nothing wrong at all.
 
 ## Prerequisites
 
-- Docker + the `docker compose` plugin (incidents 1, 3, 4)
+- Docker + the `docker compose` plugin (incidents 1, 3, 4, 7, 11)
 - Docker + [containerlab](https://containerlab.dev) (incident 2)
-- A Linux VM with `sudo` access, no containers required (incident 5)
+- A Linux VM with `sudo` access, no containers required (incidents 5, 16)
+- Docker + [`kind`](https://kind.sigs.k8s.io/) + `kubectl` (incident 6)
 - The usual troubleshooting toolkit from Levels 1-5: `top`,
-  `docker stats`, `iostat`, `tcpdump`, `iptables`, `mysql` client,
-  `journalctl`, `/proc`
+  `docker stats`, `iostat`, `tcpdump`, `iptables`, `mysql`/`psql`
+  client, `journalctl`, `/proc`

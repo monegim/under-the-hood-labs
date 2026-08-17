@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: incident07-postgres
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+      # PGDATA is a subdirectory of the SAME shared_disk volume that
+      # request-logger below also writes into - both containers'
+      # files draw from one shared inode budget, even though neither
+      # container touches the other's actual files.
+      PGDATA: /data/pgdata
+      # Smallest allowed WAL segment size (1MB instead of the default
+      # 16MB) - purely so this incident reproduces fast and reliably
+      # under ordinary small-scale signup traffic instead of needing
+      # an artificial bulk-write burst to force a new WAL segment.
+      POSTGRES_INITDB_ARGS: "--wal-segsize=1"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - shared_disk:/data
+    ports:
+      - "5470:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "appuser", "-d", "appdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: ./app
+    container_name: incident07-app
+    environment:
+      DB_HOST: postgres
+      DB_USER: appuser
+      DB_PASSWORD: apppass
+      DB_NAME: appdb
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  request-logger:
+    image: alpine:3.20
+    container_name: incident07-request-logger
+    # A stand-in for an ordinary, legitimate-looking audit-log pattern:
+    # one small file per "request" for traceability. It never opens a
+    # single Postgres file and has no idea Postgres exists - it just
+    # writes into its own subdirectory of a shared volume.
+    command: >
+      sh -c "
+      mkdir -p /data/applogs &&
+      i=0 &&
+      while true; do
+        i=\$$((i+1));
+        echo \"request $$i logged\" > /data/applogs/req-\$$i.log 2>/dev/null;
+        sleep 0.05;
+      done
+      "
+    volumes:
+      - shared_disk:/data
+    depends_on:
+      - postgres
+
+volumes:
+  # A tmpfs-backed volume with a deliberately small inode ceiling -
+  # this is what actually reproduces "df -h shows plenty of room, but
+  # writes fail" portably, without needing a privileged loopback ext4
+  # filesystem. size= caps bytes (generous - this incident is never
+  # about running out of bytes); nr_inodes= caps how many files/dirs
+  # this filesystem can hold, independent of their size.
+  shared_disk:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=256m,nr_inodes=3000"

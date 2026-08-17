@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-127%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-128%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -88,19 +88,19 @@ misconfiguration, probe misconfiguration, taints/tolerations, image pull
 failures, scheduler unable to place a Pod — all on a `kind` cluster.
 [`labs/kubernetes/`](labs/kubernetes)
 
-### Level 6 — Production Incidents (8 built / 20 planned)
+### Level 6 — Production Incidents (9 built / 20 planned)
 Combines two or more mechanisms from Levels 1-5 into a single synthetic
 incident: a realistic on-call page, symptoms only, no hint which
 subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**127 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
+**128 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
 (Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 28/20) are
 past their target counts — MySQL (20/12, deliberately grown well past
 target for deeper DBRE coverage) and Postgres (8/8). Level 5
 (Kubernetes) has just reached its target count at 20/20. Level 6
-(Incidents) is at 8/20.
+(Incidents) is at 9/20.
 
 Every lab across every level has full `check.sh`/`reset.sh` automation.
 Most labs also have `setup.sh`; the containerlab-based networking labs
@@ -203,14 +203,31 @@ was deliberately built to oversubscribe by a wide, environment-agnostic
 margin (20 replicas at 1 CPU each) specifically so it reliably saturates
 a `kind` node regardless of how many CPUs the reader's own Docker
 Desktop happens to have, rather than relying on this machine's specific
-10-core allocation. See [`CONTEXT.md`](CONTEXT.md) for the
+10-core allocation. Level 6 (Incidents) added
+`07-the-database-with-room-to-spare`, verified live against a real
+Postgres container and revised as the actual failure mechanism turned
+out subtler than first assumed: a shared tmpfs volume with a small
+`nr_inodes` ceiling (chosen specifically to reproduce "`df -h` shows
+room, but writes fail" portably, without a privileged loopback ext4
+filesystem) reliably starves an unrelated per-request logger of
+inodes, but ordinary single-row signups kept succeeding even at 100%
+inode usage — extending an already-open file doesn't need a new
+inode, only creating one does, and Postgres mostly just extends its
+files. The incident only reproduces once the `users` table grows
+enough, *after* inodes are already exhausted, to need a brand-new
+free-space-map file — confirmed live by watching identical signup
+traffic succeed cleanly before exhaustion and fail deterministically
+(at the same row count, run after run) once exhaustion came first;
+`setup.sh` now polls real signup traffic until a write actually fails,
+rather than assuming a fixed request count gets there. See
+[`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
 `kind`+etcd quota behavior, a couple of timing-sensitive PostgreSQL
 challenges in the original five Postgres labs) and worth prioritizing in
 a dry run.
 
-Remaining to reach ~120: Level 6 (12 more incidents). Levels 1-5 are
+Remaining to reach ~120: Level 6 (11 more incidents). Levels 1-5 are
 done for now — their original target counts (21, 25, 15, 20, and 20)
 have all been met — Level 2 grew further still to add a dedicated
 `iptables` mechanics set, and Level 4 grew further to deepen MySQL
