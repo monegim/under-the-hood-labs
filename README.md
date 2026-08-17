@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-124%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-126%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -64,14 +64,15 @@ read-only on its own, NFS stale mounts, swap exhaustion, I/O scheduler
 misconfiguration. Everything built on disposable loop devices — nothing
 touches a real disk. [`labs/storage/`](labs/storage)
 
-### Level 4 — Databases (26 built / 20 planned) ✅
+### Level 4 — Databases (28 built / 20 planned) ✅
 Exactly what a DBRE sees. MySQL (replication lag, GTID conflicts,
 deadlocks, slow queries, metadata locks, disk full, binlog corruption,
 connection storms, InnoDB redo log full, semi-sync timeout, partition
 pruning failure, ProxySQL misrouting, purge lag/History List Length,
 manual primary promotion, ProxySQL connection-pool exhaustion,
 auto-increment exhaustion, point-in-time recovery, InnoDB corruption
-recovery — 18/12, grown well past its original target for deeper MySQL
+recovery, ProxySQL auth mismatch, ProxySQL RUNTIME-vs-DISK config loss —
+20/12, grown well past its original target for deeper MySQL
 DBRE coverage) and
 PostgreSQL (replication lag, WAL full, autovacuum, index bloat, lock
 contention, connection pooler exhaustion, transaction ID wraparound,
@@ -93,9 +94,9 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**124 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
-(Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 26/20) are
-past their target counts — MySQL (18/12, deliberately grown well past
+**126 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
+(Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 28/20) are
+past their target counts — MySQL (20/12, deliberately grown well past
 target for deeper DBRE coverage) and Postgres (8/8). Level 5 (Kubernetes)
 is at 19/20, and Level 6 (Incidents) is at 8/20.
 
@@ -168,7 +169,27 @@ call requesting it, that `never` mode overrides even an explicit
 reads an unremarkable ~25% throughout a workload that's actually
 throttled hard enough to make a fixed unit of work take 5x longer —
 only `/sys/fs/cgroup/cpu.stat`'s `throttled_usec` shows what's really
-happening. See [`CONTEXT.md`](CONTEXT.md) for the
+happening. Two more MySQL labs
+(`19-proxysql-auth-mismatch`, `20-proxysql-runtime-not-persisted`) got
+the same treatment and each turned up a genuine surprise mid-build: the
+auth-mismatch incident didn't actually reproduce on the first working
+version of its `setup.sh` at all — ProxySQL had already pooled a
+still-valid backend connection before the password rotation ran, and
+MySQL doesn't invalidate an already-authenticated session just because
+the password changes later, so the "broken" query kept succeeding
+until the pooled connection was forced to recycle; and a `docker
+compose restart proxysql` used mid-investigation produced an
+unexpected `ProxySQL Error:`-prefixed rejection that turned out to be
+a second, real finding rather than a mistake — restarting ProxySQL
+without ever having run `SAVE ... TO DISK` reverts its working config
+tables to empty, not just its RUNTIME state, which became lab 20's
+entire premise. Both labs' two challenges each were independently
+re-verified end to end after every script change, including the exact
+wait time ProxySQL's monitor `connect_interval` actually needs before
+a broken credential shows up in its logs (60 seconds, not "a few
+seconds" as first assumed) and confirming `mysql_server_ping_log`
+reuses a persistent connection and so misses the same fault entirely.
+See [`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
 `kind`+etcd quota behavior, a couple of timing-sensitive PostgreSQL

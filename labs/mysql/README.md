@@ -1,6 +1,6 @@
 # Level 4 — Databases: MySQL
 
-Eighteen hands-on MySQL/InnoDB incidents, each a real environment with an
+Twenty hands-on MySQL/InnoDB incidents, each a real environment with an
 induced fault, not a quiz. Same DBRE instinct as the
 [Postgres half of this level](../postgres): reproduce the incident,
 diagnose it from first principles using MySQL's own system views and
@@ -70,10 +70,19 @@ identical on the surface but have a different root cause.
     `mysqld` outright; recovered with `innodb_force_recovery`, including
     why its highest level can return silently wrong data instead of
     crashing at all.
+19. [`19-proxysql-auth-mismatch`](19-proxysql-auth-mismatch) — a backend
+    password rotated directly on MySQL, without updating ProxySQL's
+    copy, keeps working for a while on pooled connections before
+    failing in a way that's easy to mistake for the wrong incident
+    entirely.
+20. [`20-proxysql-runtime-not-persisted`](20-proxysql-runtime-not-persisted) —
+    a ProxySQL routing fix loaded `TO RUNTIME` but never `SAVE`d `TO
+    DISK` silently reverts on the next unrelated restart, weeks after
+    the change that actually caused it.
 
 ## Prerequisites
 
-- Docker + the `docker compose` plugin for labs 1-2, 7, 9-18
+- Docker + the `docker compose` plugin for labs 1-2, 7, 9-20
 - A Linux host with `sudo`/apt access for labs 3-6, 8 (these install
   `mysql-server` directly rather than using Docker — each README says
   exactly what's needed)

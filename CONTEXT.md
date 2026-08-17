@@ -456,6 +456,80 @@ not a namespaced approximation):
   the same total work spread across `nproc` (10) threads instead of 2
   took ~2.3x longer and accumulated over 10x more throttled time.
 
+**2026-08-17 — MySQL grew to 20/12: two ProxySQL labs added
+(`19-proxysql-auth-mismatch`, `20-proxysql-runtime-not-persisted`),
+each fully live-Docker-verified, each turning up a real surprise
+mid-build.**
+
+`19-proxysql-auth-mismatch` — the scenario: `appuser`'s password is
+rotated directly on the MySQL backend without updating ProxySQL's
+`mysql_users` copy. The first working version of `setup.sh` did NOT
+actually reproduce the incident: it ran a "confirm baseline works"
+query before rotating the password, which caused ProxySQL to pool a
+backend connection using the still-valid old password — and MySQL does
+not invalidate an already-authenticated session just because the
+user's password changes later, so the pooled connection kept working
+fine through the rotation. `SELECT 1` through ProxySQL kept succeeding,
+and `check.sh` incorrectly reported `[PASS]` immediately after setup.
+Root-caused live via `stats_mysql_connection_pool` (`ConnFree: 1`,
+`ConnOK: 1`), confirmed by directly `KILL`ing the pooled connection's
+PID on the backend (`information_schema.processlist`), which forced
+ProxySQL to open a fresh connection and correctly surfaced `ERROR 1045
+... Access denied for user 'appuser'@'172.26.0.3'` — no `ProxySQL
+Error:` prefix, confirming it's a genuine backend-forwarded rejection,
+not ProxySQL's own client-facing check. `setup.sh` now performs this
+same kill deterministically as its last step, so the incident
+reproduces reliably on every fresh run. `check.sh` was also changed to
+read `appuser`'s password live from ProxySQL's `mysql_users` table
+rather than hardcoding it, since ProxySQL's `mysql_users.password`
+field does double duty as both the client-facing and backend-facing
+credential — this makes the check correct regardless of which
+direction the eventual fix goes (sync ProxySQL forward, or roll the
+backend back). Challenge A (client sends the wrong password) was
+confirmed to produce a visibly different, `ProxySQL Error:`-prefixed
+rejection with `@127.0.0.1` as the host — a clean, live-verified
+signal for telling client-side vs. backend-side auth failures apart.
+Challenge B (broken `monitor` user password) initially looked
+inconclusive — `monitor.mysql_server_ping_log` kept reporting success
+for a full 8-second wait — until digging into
+`mysql-monitor_ping_interval` (10s) vs. `mysql-monitor_connect_interval`
+(60s, the default) explained why: the ping check reuses a persistent,
+already-authenticated connection exactly like the main incident's
+connection pool, so it never re-authenticates and never catches a
+broken password; only the connect check opens a genuinely fresh
+connection each interval, and it needs a full 60-second wait (not "a
+few seconds," the first assumption) before `monitor.mysql_server_connect_log`
+shows the failure. `mysql_servers.status` was confirmed to stay
+`ONLINE` throughout, live-explained by
+`mysql-monitor_ping_max_failures` existing as a variable (governing
+ping-triggered shunning) with no connect-check equivalent at all.
+
+`20-proxysql-runtime-not-persisted` — grew directly out of an
+unresolved discrepancy from the lab 19 investigation: an earlier
+`docker compose restart proxysql`, run mid-troubleshooting before
+`setup.sh` had a `SAVE MYSQL USERS TO DISK` step, produced an
+unexpected `ProxySQL Error:`-prefixed rejection for a user whose
+client-side password had never changed. Investigating this directly
+(rather than dismissing it) revealed the real mechanism and became
+this lab's entire premise: restarting ProxySQL without ever having run
+`SAVE ... TO DISK` doesn't just lose the in-memory RUNTIME config — it
+reverts the *working* config tables (`mysql_users`, `mysql_servers`)
+to empty too, confirmed by directly querying both `mysql_users` and
+`disk.mysql_users` (ProxySQL's admin interface exposes a real,
+separately queryable `disk` database backed by its on-disk SQLite
+file) immediately after a restart and finding both sides empty. Two
+challenges were live-verified end to end: Challenge A confirmed `SAVE
+... TO DISK` is genuinely per-category (`mysql_servers` persisted,
+`mysql_users` didn't, because only `SAVE MYSQL SERVERS TO DISK` was
+run) — after a restart, the servers table came back fully intact while
+the users table came back empty. Challenge B confirmed `LOAD MYSQL
+USERS FROM DISK` is a real, distinctly-named footgun — it moves data
+the *opposite* direction from every other command used in the lab (disk
+→ working tables, overwriting them), and running it while an unsaved,
+live change (`urgentuser`) sits in the working tables silently deletes
+that change with no warning; verified precisely which user survived
+(the previously-saved one) and which didn't (the not-yet-saved one).
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat
