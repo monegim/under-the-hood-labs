@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Lab 27 reset — tears the stack down and rebuilds via setup.sh with the
+# default (tight) CPU quota.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+echo "[reset] tearing down the stack..."
+unset CPU_LIMIT
+docker compose down -v 2>/dev/null || true
+
+echo "[reset] rebuilding via setup.sh (cpus=0.5)..."
+bash "$SCRIPT_DIR/setup.sh"
+
+echo "[reset] done."

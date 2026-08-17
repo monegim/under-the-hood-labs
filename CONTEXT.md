@@ -420,6 +420,42 @@ extensive live testing:
   Oracle-Linux-based userland lacks `which`, and `innochecksum` isn't
   present either (checked directly via `ls`, not inferred).
 
+**2026-08-17 — Level 1 (Linux Basics) grew to 27/21: two performance
+labs added.** User asked for Linux performance-optimization labs.
+`perf`/flame-graph profiling was the first pick but doesn't work in
+this environment at all — Docker Desktop's kernel identifies as
+`6.12.76-linuxkit`, a custom build with no matching `linux-tools`
+package in any standard distro repo (confirmed directly: `apt-get
+install linux-tools-$(uname -r)` fails). Pivoted to two topics fully
+verified via a `--privileged` container instead (chosen because THP is
+a host-wide, non-namespaced kernel feature — a privileged container's
+access to it is equivalent to a real VM's for this specific purpose,
+not a namespaced approximation):
+- `linux/26-transparent-hugepages` — `always` mode backs a plain
+  mmap+touch workload (no API call requesting it) with real 2MB pages,
+  confirmed via `/proc/vmstat`'s `thp_fault_alloc` counter increasing.
+  `madvise` mode correctly leaves that same workload alone while still
+  honoring an explicit `madvise(MADV_HUGEPAGE)` call from a different
+  test program; `never` overrides even that explicit request with no
+  error reported anywhere. An earlier attempt to demonstrate this via
+  RSS memory bloat (many small sparse `mmap` regions) went nowhere —
+  Python's `mmap.mmap()` doesn't guarantee 2MB alignment, so the
+  allocations were never THP-eligible regardless of the sysfs setting;
+  switched to counter-based verification (`thp_fault_alloc`,
+  `/proc/<pid>/smaps_rollup`'s `AnonHugePages`) instead, which is also
+  the more realistic diagnostic technique.
+- `linux/27-cfs-cpu-throttling` — a container limited to `cpus: 0.5`
+  makes a fixed CPU workload (2 threads, 4M fibonacci ops via
+  `stress-ng`) take ~5x longer than unconstrained (322ms vs 67ms,
+  measured directly), while `docker stats` reports ~25% CPU throughout
+  — nowhere near the 50% quota, unremarkable-looking. Only
+  `/sys/fs/cgroup/cpu.stat`'s `throttled_usec` shows the real story.
+  Confirmed live that sizing concurrency off `nproc` (which reports the
+  *host's* CPU count inside a container, not the cgroup quota) instead
+  of the actual quota makes throttling measurably worse, not better:
+  the same total work spread across `nproc` (10) threads instead of 2
+  took ~2.3x longer and accumulated over 10x more throttled time.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

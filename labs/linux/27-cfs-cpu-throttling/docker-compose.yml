@@ -1,0 +1,6 @@
+services:
+  app:
+    image: ubuntu:22.04
+    container_name: lab27-app
+    command: ["sleep", "infinity"]
+    cpus: ${CPU_LIMIT:-0.5}

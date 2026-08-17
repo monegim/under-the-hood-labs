@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-122%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-124%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -36,14 +36,15 @@ roughly 120 labs total once complete.
 
 ## Levels
 
-### Level 1 — Linux Basics (25 built / 21 planned) ✅
+### Level 1 — Linux Basics (27 built / 21 planned) ✅
 Not "how to use `ps`" — how Linux actually works under a real incident.
 Split into two halves: **foundations** (build the underlying mechanism
 yourself — namespaces, cgroups, overlayfs, a container from scratch,
 eBPF) and **troubleshooting** (a simulated production incident per lab,
 including strace/ltrace, boot failures, zombie processes, clock drift,
 shell-toolkit labs on awk/sed log forensics and xargs/history bulk
-operations, and tmux session persistence). [`labs/linux/`](labs/linux)
+operations, tmux session persistence, Transparent Huge Pages, and CFS
+CPU quota throttling). [`labs/linux/`](labs/linux)
 
 Tools: `ps`, `top`/`htop`, `vmstat`, `iostat`, `strace`, `lsof`, `journalctl`, `/proc`, `systemctl`, `tmux`
 
@@ -92,7 +93,7 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**122 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
+**124 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
 (Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 26/20) are
 past their target counts — MySQL (18/12, deliberately grown well past
 target for deeper DBRE coverage) and Postgres (8/8). Level 5 (Kubernetes)
@@ -155,7 +156,19 @@ destructive one that kept crashing `mysqld` unrecoverably before) made
 the whole recovery flow work cleanly, and live testing also surfaced
 that `innodb_force_recovery`'s highest level doesn't crash on genuinely
 corrupted row data — it can return a wrong answer that looks completely
-successful, which became the lab's sharpest lesson. See [`CONTEXT.md`](CONTEXT.md) for the
+successful, which became the lab's sharpest lesson. Two Linux Basics
+labs (`26-transparent-hugepages`, `27-cfs-cpu-throttling`) got the same
+treatment against a privileged Docker container (chosen after `perf`
+turned out not to work at all against Docker Desktop's own
+`linuxkit`-flavored kernel — no matching `linux-tools` package exists
+for it) — confirmed live that a plain `mmap`+touch workload silently
+gets backed by Transparent Huge Pages under `always` mode with no API
+call requesting it, that `never` mode overrides even an explicit
+`madvise(MADV_HUGEPAGE)` opt-in, and that `docker stats`' CPU%
+reads an unremarkable ~25% throughout a workload that's actually
+throttled hard enough to make a fixed unit of work take 5x longer —
+only `/sys/fs/cgroup/cpu.stat`'s `throttled_usec` shows what's really
+happening. See [`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
 `kind`+etcd quota behavior, a couple of timing-sensitive PostgreSQL
