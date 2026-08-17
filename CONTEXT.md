@@ -700,6 +700,131 @@ flag needed). Confirmed live, step by step, before writing any docs:
   local-service collision handled for lab 07's Postgres port earlier
   the same day.
 
+**2026-08-18 — Level 2 (Networking) grew to 33/25: four new labs
+(`30-mangle-policy-routing`, `31-load-balancer-health-check-blind-spot`,
+`32-tcp-zero-window-analysis`, `33-snat-vs-masquerade`), all
+live-verified. `labs/networking/README.md` also created from scratch —
+it never existed before this batch despite the level having 29 labs
+already; the root README linked to the bare directory listing the
+whole time.** Requested by the user directly ("need more on network
+troubleshooting, wireshart, tcpdump, nat, snat, mangle, and
+loadbalancing, and mysql") — scoped via `AskUserQuestion` to standalone
+Level 2/4 labs (not Level 6 incidents), all four networking gap topics,
+with MySQL scope deferred ("not sure yet, decide after seeing the
+networking labs").
+
+Verification environment: a single privileged Ubuntu 22.04 Docker
+container (`labtest`) with `iproute2`/`iptables`/`tcpdump`/`tshark`/
+`python3`/`haproxy` installed, used as the "Linux VM" substitute for
+all four labs (`ip netns` + `iptables` work identically to a real VM
+under `--privileged` + `--cap-add=NET_ADMIN`, already established
+earlier in this project). A no-op `sudo` shim (`exec "$@"`) was
+installed since the container runs as root already — the shipped
+scripts still say `sudo`, matching what a real non-root VM user needs.
+
+`30-mangle-policy-routing`: the ORIGINAL design marked a router's own
+locally-generated traffic in `iptables -t mangle -A OUTPUT` (a router
+directly `nc`-ing a downstream target) and set up the matching
+`ip rule`/custom table correctly — confirmed via `ip rule show` and
+`ip route get ... mark 0x64` that the policy routing config was
+correct, yet a live packet capture on the actual `nc` connection showed
+it still going out via the WRONG (main-table) interface, with the
+wrong source address. Root cause: for a brand-new locally-generated
+TCP connection, the kernel's route lookup (which picks source
+address/interface) happens as part of building the very first SYN,
+before `mangle OUTPUT` has run — so the mark never influences that
+first, connection-defining route decision. This is a real,
+kernel-level two-pass routing subtlety, not a config mistake. Fixed by
+switching to the standard, more reliable real-world pattern: mark
+*forwarded* traffic (a separate `client` namespace's traffic passing
+*through* the router) in `mangle PREROUTING` instead — confirmed live
+this reroutes correctly, matching how production multi-WAN/policy
+routing setups actually mark traffic. Final topology: 5 namespaces
+(`client`, `router`, `gwa` the default/unreachable path, `gwb` the only
+real path, `target`). Both challenges (wrong `ip rule` priority placing
+it after `main`; `ip rule` pointing at a table number with no matching
+route) verified live and produce identical "timeout, no obvious error"
+symptoms from the outside, distinguishable only by inspecting `ip rule
+show` and `ip route show table N` as two separate facts. A real,
+separate bug also surfaced and got fixed along the way: the first
+`setup.sh` used an `nc -lk`-in-a-loop target listener that had a
+restart gap between connections, causing ~1-in-3 spurious connection
+failures even in the *fixed* state (caught via a 10-run stress test,
+not a single test); replaced with a persistent Python
+`socketserver.ThreadingTCPServer`, confirmed 10/10 clean afterward.
+
+`31-load-balancer-health-check-blind-spot`: HAProxy + 3 Flask backends,
+one (`backend3`) with a working `/healthz` but a permanently broken
+`/api/data` (the "real" traffic path) — confirmed live via HAProxy's
+own stats page showing `backend3` as fully `UP` (`L7OK/200`) while its
+`HTTP 5xx responses` counter sat at 100%. `reset.sh` originally used
+`git checkout -- haproxy/haproxy.cfg` to undo a reader's fix edit — a
+real design flaw caught before committing anything: this file wasn't
+tracked in git yet at that point, so the checkout would silently no-op
+instead of reverting, and even after committing it's a fragile pattern
+inconsistent with how every other lab in this repo handles "before"
+state. Fixed by having `setup.sh` write `haproxy.cfg` fresh from an
+embedded heredoc on every run instead, removing the git dependency
+entirely. Challenge A (detection lag from HAProxy's default
+`rise`/`fall`/`inter` thresholds) confirmed live by hard-stopping
+`backend1` and counting real `000` connection failures (4-5,
+consistently) before HAProxy's stats page flipped it to `DOWN`.
+Challenge B (`option httpchk` removed entirely, falling back to a
+Layer-4-only TCP check) confirmed live via HAProxy's own stats page
+literally showing `L4OK` instead of an HTTP result — `backend3` stayed
+`UP` throughout, exactly as predicted, strictly blinder than the main
+lab's wrong-endpoint mistake.
+
+`32-tcp-zero-window-analysis`: a Python receiver with a tiny
+`SO_RCVBUF` (2048 bytes) reading in small, deliberately-delayed chunks
+against a fast sender — confirmed live via `tshark -Y
+'tcp.analysis.zero_window'` finding 15 flagged frames in a capture
+where raw `tcpdump | grep 'win 0'` found the same packets only because
+the exact string to search for was already known in advance. A real
+timing bug surfaced and got fixed: `sudo VAR=val command` does NOT set
+environment variables the way plain shell assignment does (sudo has no
+special parsing for that syntax) — the original setup.sh's
+`sudo RCVBUF=2048 ... ip netns exec ...` silently failed with `exec:
+RCVBUF=2048: not found`, caught immediately when the server never
+actually started listening; fixed with `sudo ip netns exec server env
+RCVBUF=2048 ...` instead, using `env` as the actual mechanism for
+setting variables on a single command under `sudo`. Also confirmed
+live (and initially mistaken for a flaky check.sh) that the exact
+zero-window *count* genuinely varies run to run (15, 30, 31 observed
+across identical broken-state runs) due to real TCP timing jitter —
+this is not a bug, since `check.sh`'s pass/fail logic only checks
+zero-vs-nonzero, confirmed reliable across 5 repeated runs each of the
+broken state (always FAIL) and the fixed state (always PASS, exactly
+0 events every time).
+
+`33-snat-vs-masquerade`: client → router → upstream, static `SNAT`
+hardcoded to router's current external address, then that address
+changes (simulating a DHCP renewal). First live test of the "IP
+changes, SNAT breaks" premise was surprising: connectivity *kept
+working* after the address change. Root-caused live: `upstream`'s ARP
+cache still mapped the old, now-unbound address to router's unchanged
+MAC address, so replies kept physically arriving at router's NIC
+regardless of what IP was actually configured — confirmed by explicitly
+flushing `upstream`'s ARP cache (`ip neigh flush all`), at which point
+the connection genuinely timed out. This became both the fix for
+`setup.sh` (explicitly flush ARP as part of fault injection, so the
+incident reproduces immediately rather than requiring an indeterminate
+real-world ARP cache expiry) and Challenge A's entire lesson (the same
+misconfiguration is invisible for a real, unpredictable amount of time
+before an unrelated cache-expiry event makes it fail). Confirmed
+`MASQUERADE` survives the exact same address change with zero rule
+changes, and separately confirmed (Challenge B) that "fixing" `SNAT` by
+updating `--to-source` to the new address works once but breaks again,
+identically, on a second address change — `MASQUERADE` survives both.
+
+Root README's networking description, badge, Status paragraph, and
+"Remaining to reach ~120" note all updated to 33/25 and 133/~120
+total. `labs/networking/README.md` written from scratch (33 entries)
+since it was genuinely missing — confirmed via direct `find`/`ls`, not
+assumed; the internal-link checker apparently doesn't flag a level
+directory lacking its own README, only broken links between existing
+files.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

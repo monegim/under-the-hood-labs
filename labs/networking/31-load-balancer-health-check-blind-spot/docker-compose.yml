@@ -1,0 +1,34 @@
+services:
+  backend1:
+    build: ./app
+    container_name: lab31-backend1
+    environment:
+      BACKEND_ID: "1"
+      BROKEN: "false"
+
+  backend2:
+    build: ./app
+    container_name: lab31-backend2
+    environment:
+      BACKEND_ID: "2"
+      BROKEN: "false"
+
+  backend3:
+    build: ./app
+    container_name: lab31-backend3
+    environment:
+      BACKEND_ID: "3"
+      BROKEN: "true"
+
+  haproxy:
+    image: haproxy:2.9
+    container_name: lab31-haproxy
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "8091:8080"
+      - "8405:8404"
+    depends_on:
+      - backend1
+      - backend2
+      - backend3

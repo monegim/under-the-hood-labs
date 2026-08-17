@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-129%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-133%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -48,11 +48,14 @@ CPU quota throttling). [`labs/linux/`](labs/linux)
 
 Tools: `ps`, `top`/`htop`, `vmstat`, `iostat`, `strace`, `lsof`, `journalctl`, `/proc`, `systemctl`, `tmux`
 
-### Level 2 — Networking (29 built / 25 planned) ✅
+### Level 2 — Networking (33 built / 25 planned) ✅
 Every SRE should be comfortable debugging packets — including a
-dedicated set of `iptables` mechanics labs (rule order/custom chains,
-rules lost on reboot, the IPv4-only-firewall/IPv6-wide-open gap, and
-rate limiting done right). [`labs/networking/`](labs/networking)
+dedicated set of `iptables`/policy-routing mechanics labs (rule
+order/custom chains, rules lost on reboot, the
+IPv4-only-firewall/IPv6-wide-open gap, rate limiting done right, and
+`mangle`-table policy routing), plus a deeper pass on load-balancer
+health checks, TCP flow-control capture analysis, and SNAT vs.
+MASQUERADE. [`labs/networking/`](labs/networking)
 
 Tools: `tcpdump`, `ip`, `ss`, `bridge`, `conntrack`, `iptables`/`nftables`, `dig`, `mtr`, `tracepath`
 
@@ -95,8 +98,8 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**129 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
-(Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 28/20) are
+**133 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
+(Networking, 33/25), 3 (Storage, 15/15), and 4 (Databases, 28/20) are
 past their target counts — MySQL (20/12, deliberately grown well past
 target for deeper DBRE coverage) and Postgres (8/8). Level 5
 (Kubernetes) has just reached its target count at 20/20. Level 6
@@ -232,7 +235,29 @@ confirmed live that `ping6` succeeding and a TCP connect to the same
 address's app port succeeding are genuinely independent facts — an
 `ip6tables -j DROP` rule left ICMPv6 fully working while every
 connection attempt to the app's port silently hung for the full
-client timeout instead of failing fast. See
+client timeout instead of failing fast. Level 2 (Networking) grew to
+33 labs across four new topics, each live-verified and each requiring
+a real redesign once initial assumptions didn't hold up:
+`30-mangle-policy-routing`'s first design (marking a router's own
+locally-generated `OUTPUT` traffic) never actually rerouted — the very
+first SYN of a new connection picks its source address/route before
+`mangle` gets a chance to influence it, confirmed live via a packet
+capture showing the wrong source address despite a correctly-firing
+mark; switching to marking *forwarded* client traffic in `PREROUTING`
+(the standard real-world multi-WAN pattern) fixed it reliably.
+`31-load-balancer-health-check-blind-spot`'s `reset.sh` originally
+relied on `git checkout` to undo a reader's config edit — fragile
+before the file was even committed — reworked so `setup.sh` rewrites
+`haproxy.cfg` fresh from a heredoc every run instead. `33-snat-vs-masquerade`
+initially looked like changing a NAT gateway's address didn't break
+static `SNAT` at all — until confirming live that the neighboring
+host's stale ARP cache entry was masking it, still routing packets to
+the old address's MAC for a while; the lab now explicitly flushes ARP
+as part of fault injection (matching what genuinely happens once a
+real cache entry expires) so the incident reproduces immediately
+instead of "wait an indeterminate amount of time to see it break."
+`labs/networking/README.md` itself didn't exist before this batch —
+built from scratch covering all 33 labs. See
 [`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
@@ -242,9 +267,11 @@ a dry run.
 
 Remaining to reach ~120: Level 6 (10 more incidents). Levels 1-5 are
 done for now — their original target counts (21, 25, 15, 20, and 20)
-have all been met — Level 2 grew further still to add a dedicated
-`iptables` mechanics set, and Level 4 grew further to deepen MySQL
-DBRE coverage specifically.
+have all been met — Level 2 grew further still, first to add a
+dedicated `iptables` mechanics set and then again for `mangle`-table
+policy routing, load-balancer health checks, TCP flow-control capture
+analysis, and SNAT vs. MASQUERADE, and Level 4 grew further to deepen
+MySQL DBRE coverage specifically.
 
 ## Contributing
 
