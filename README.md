@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-126%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-127%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -79,13 +79,14 @@ contention, connection pooler exhaustion, transaction ID wraparound,
 logical replication conflicts — 8/8). [`labs/mysql/`](labs/mysql) ·
 [`labs/postgres/`](labs/postgres)
 
-### Level 5 — Kubernetes (19 built / 20 planned)
+### Level 5 — Kubernetes (20 built / 20 planned) ✅
 Pod networking, CoreDNS failure, etcd full, expired certs, stuck PVCs,
 node pressure, CNI failure, broken ingress, API server unavailable,
 kubelet cert rotation, HPA not scaling, resource quotas, admission
 webhooks, StatefulSet PVC mismatch, PDB blocking drain, RBAC
 misconfiguration, probe misconfiguration, taints/tolerations, image pull
-failures — all on a `kind` cluster. [`labs/kubernetes/`](labs/kubernetes)
+failures, scheduler unable to place a Pod — all on a `kind` cluster.
+[`labs/kubernetes/`](labs/kubernetes)
 
 ### Level 6 — Production Incidents (8 built / 20 planned)
 Combines two or more mechanisms from Levels 1-5 into a single synthetic
@@ -94,11 +95,12 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**126 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
+**127 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
 (Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 28/20) are
 past their target counts — MySQL (20/12, deliberately grown well past
-target for deeper DBRE coverage) and Postgres (8/8). Level 5 (Kubernetes)
-is at 19/20, and Level 6 (Incidents) is at 8/20.
+target for deeper DBRE coverage) and Postgres (8/8). Level 5
+(Kubernetes) has just reached its target count at 20/20. Level 6
+(Incidents) is at 8/20.
 
 Every lab across every level has full `check.sh`/`reset.sh` automation.
 Most labs also have `setup.sh`; the containerlab-based networking labs
@@ -189,18 +191,30 @@ wait time ProxySQL's monitor `connect_interval` actually needs before
 a broken credential shows up in its logs (60 seconds, not "a few
 seconds" as first assumed) and confirming `mysql_server_ping_log`
 reuses a persistent connection and so misses the same fault entirely.
-See [`CONTEXT.md`](CONTEXT.md) for the
+Level 5 (Kubernetes) reached its target count with
+`20-scheduler-cannot-place-pod`, verified the same way against a live
+`kind` cluster — its `setup.sh` originally raced kind's own
+control-plane-taint removal (a Pod applied immediately after `kind
+create cluster` returns can briefly get rejected for an unrelated
+"untolerated taint" instead of the intended `Insufficient cpu`,
+confirmed live and fixed by waiting for `condition=Ready` on the node
+first), and its "existing workloads already ate the capacity" challenge
+was deliberately built to oversubscribe by a wide, environment-agnostic
+margin (20 replicas at 1 CPU each) specifically so it reliably saturates
+a `kind` node regardless of how many CPUs the reader's own Docker
+Desktop happens to have, rather than relying on this machine's specific
+10-core allocation. See [`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
 `kind`+etcd quota behavior, a couple of timing-sensitive PostgreSQL
 challenges in the original five Postgres labs) and worth prioritizing in
 a dry run.
 
-Remaining to reach ~120: Level 5 (1 more Kubernetes topic), Level 6 (12
-more incidents). Levels 1, 2, 3, and 4 are done for now — their original
-target counts (21, 25, 15, and 20) have been met — Level 2 grew further
-still to add a dedicated `iptables` mechanics set, and Level 4 grew
-further to deepen MySQL DBRE coverage specifically.
+Remaining to reach ~120: Level 6 (12 more incidents). Levels 1-5 are
+done for now — their original target counts (21, 25, 15, 20, and 20)
+have all been met — Level 2 grew further still to add a dedicated
+`iptables` mechanics set, and Level 4 grew further to deepen MySQL
+DBRE coverage specifically.
 
 ## Contributing
 

@@ -1,6 +1,6 @@
 # Level 5 — Kubernetes
 
-19 labs diagnosing real Kubernetes failure modes on a `kind`
+20 labs diagnosing real Kubernetes failure modes on a `kind`
 (Kubernetes in Docker) cluster — not "how do Pods/Services work"
 (that's already covered by
 [`labs/linux/06-kubernetes-internals`](../linux/06-kubernetes-internals),
@@ -87,6 +87,11 @@ fixed / rebuild it from scratch).
     produces `ImagePullBackOff`; contrasted with an unreachable registry
     host (a DNS/connection failure, not "not found") and `kind`'s
     separate-per-node image store tripping up `imagePullPolicy: Never`.
+20. [`20-scheduler-cannot-place-pod`](20-scheduler-cannot-place-pod) — a
+    Pod requesting more CPU than any node has sits `Pending` forever
+    with a perfectly valid spec; contrasted with a `nodeSelector`
+    matching no node's labels, and existing workloads already claiming
+    the capacity a brand-new, perfectly reasonable request needs.
 
 ## Prerequisites
 

@@ -530,6 +530,49 @@ live change (`urgentuser`) sits in the working tables silently deletes
 that change with no warning; verified precisely which user survived
 (the previously-saved one) and which didn't (the not-yet-saved one).
 
+**2026-08-17 (later same day) — Level 5 (Kubernetes) reached its
+20/20 target: `20-scheduler-cannot-place-pod` added, fully
+live-verified against a real `kind` cluster.**
+
+Scenario: a Pod requesting far more CPU than a single-node `kind`
+cluster has sits `Pending` forever with a completely valid spec, plus
+two contrasting challenges (a `nodeSelector` matching no node's
+labels; existing workloads already claiming the node's capacity before
+a new, individually-reasonable request arrives). All three mechanisms
+were run against a real cluster, not reasoned about from docs.
+
+`setup.sh`'s first working version had a real, timing-dependent bug:
+deploying the Deployment immediately after `kind create cluster`
+returns raced kind's own removal of the control-plane node's startup
+taint, and depending on timing the Pod would get rejected for
+`untolerated taint(s)` instead of the intended `Insufficient cpu` —
+confirmed live (`kubectl describe pod` genuinely showed the taint
+message on one run, then the correct CPU message on a re-run seconds
+later with no code change). Fixed by adding
+`kubectl wait --for=condition=Ready node --all` between cluster
+creation and deploying the workload; re-verified across multiple
+`reset.sh` runs afterward with no further races.
+
+The "existing workloads already ate the capacity" challenge was
+deliberately designed to not depend on this machine's specific node
+size: rather than hand-tuning exact CPU numbers against the 10
+allocatable cores this Docker Desktop happened to report
+(`kubectl describe node` confirmed 10, but that number is tied to
+whatever the reader's own Docker Desktop VM is configured with, not a
+constant), the baseline "filler" Deployment deliberately requests 20
+replicas x 1 CPU each — 20 cores demanded, comfortably more than any
+single-node `kind` cluster is likely to have — so it reliably
+saturates the node's real Allocatable capacity regardless of exactly
+what that capacity is. Confirmed live: on this 10-core node, 11 of 20
+filler replicas stayed `Pending` and the node's own Allocated
+Resources sat at 99% CPU; a subsequent `webapp` Pod requesting only
+`200m` still failed to schedule with the identical `Insufficient cpu`
+wording as the main lab's scenario, despite its own request being
+completely reasonable in isolation — confirming the intended "same
+error text, unrelated root cause" lesson. The fix (scaling the filler
+deployment down) was confirmed to let `webapp` schedule with no change
+to its own manifest at all.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat
