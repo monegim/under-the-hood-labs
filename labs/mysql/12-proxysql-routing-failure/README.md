@@ -70,7 +70,7 @@ to the wrong place."
 
 ## Step 4 — Diagnose at the ProxySQL admin layer
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
   SELECT hostgroup_id, hostname, port, status FROM mysql_servers;
 "
 ```
@@ -79,7 +79,7 @@ read-write MySQL instance, `replica` is `read_only=ON`. Compare the
 `hostgroup_id` each is registered under to the hostgroup your query rules
 and `mysql_users.default_hostgroup` expect for writes vs. reads:
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
   SELECT username, default_hostgroup FROM mysql_users;
   SELECT rule_id, match_pattern, destination_hostgroup, apply FROM mysql_query_rules ORDER BY rule_id;
 "
@@ -92,7 +92,7 @@ the PRIMARY. That's the entire bug — one swapped assignment in
 `mysql_servers`.
 
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
   SELECT hostgroup, count_star, digest_text
   FROM stats_mysql_query_digest ORDER BY count_star DESC LIMIT 10;
 "
@@ -103,7 +103,7 @@ matching the misconfiguration, not your intent.
 
 ## Step 5 — Fix it: correct the hostgroup assignment
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
   UPDATE mysql_servers SET hostgroup_id = 10 WHERE hostname = 'primary';
   UPDATE mysql_servers SET hostgroup_id = 20 WHERE hostname = 'replica';
   LOAD MYSQL SERVERS TO RUNTIME;
@@ -130,7 +130,7 @@ primary.
 **Challenge A — a correct-looking rule that never fires because of
 ordering:**
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
   DELETE FROM mysql_query_rules;
   INSERT INTO mysql_query_rules (rule_id, active, match_pattern, destination_hostgroup, apply) VALUES
     (1, 1, '^SELECT', 20, 1),
@@ -138,11 +138,14 @@ docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
   LOAD MYSQL QUERY RULES TO RUNTIME;
 "
 docker exec lab12-primary mysql -h proxysql -P 6033 -u appuser -papppass appdb -e "
-  BEGIN;
   SELECT * FROM orders WHERE id = 1 FOR UPDATE;
-  COMMIT;
 "
 ```
+(Run it exactly like this — a single autocommit statement, not wrapped
+in its own `BEGIN`/`COMMIT`. Wrapping it in an explicit transaction
+changes what you observe here — see the note at the end of this
+challenge for why.)
+
 This locking read needs to go to the primary (a `SELECT ... FOR UPDATE`
 against a read-only replica will fail the same way Step 2's plain write
 did). Both rules LOOK individually correct. Check
@@ -151,22 +154,45 @@ landed in, and figure out why — the fix isn't rewriting either rule's
 `match_pattern`, it's something about how ProxySQL evaluates the two rules
 relative to each other.
 
-**Challenge B — a "fix" that silently un-fixes itself:**
+Once you've formed a diagnosis, try the *same* query again, but this
+time wrapped in an explicit transaction:
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
-  INSERT INTO mysql_replication_hostgroups (writer_hostgroup, reader_hostgroup, check_type) VALUES (20, 10, 'read_only');
-  LOAD MYSQL SERVERS TO RUNTIME;
-"
-sleep 10
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
-  SELECT hostgroup_id, hostname, port, status FROM mysql_servers;
+docker exec lab12-primary mysql -h proxysql -P 6033 -u appuser -papppass appdb -e "
+  BEGIN;
+  SELECT * FROM orders WHERE id = 1 FOR UPDATE;
+  COMMIT;
 "
 ```
-Do this AFTER Step 5/6's fix is in place and working. Wait ~10 seconds,
-then check `mysql_servers` again. Explain what just happened to your
-Step 5 fix, what `mysql_replication_hostgroups` actually does when it's
-configured, and why the specific values used here (`writer_hostgroup=20,
-reader_hostgroup=10`) reproduce the ORIGINAL incident automatically —
-without anyone touching `mysql_servers` directly a second time.
+This one succeeds — same query, same query rules, opposite result.
+Check `stats_mysql_query_digest` again and compare the hostgroup each
+version actually landed in. What does ProxySQL do differently once a
+statement is inside an explicit `BEGIN`, and why does that make the
+rule-ordering bug from the first version disappear rather than fix it?
+
+**Challenge B — reads correctly routed to the primary still see stale data:**
+
+Do this AFTER Step 5/6's fix is in place (correct hostgroups, correct
+query rule order). Add a query-caching rule for reads on `orders`:
+```bash
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
+  DELETE FROM mysql_query_rules;
+  INSERT INTO mysql_query_rules (rule_id, active, match_pattern, destination_hostgroup, cache_ttl, apply) VALUES
+    (1, 1, '^SELECT.*FOR UPDATE', 10, NULL, 1),
+    (2, 1, '^SELECT \\* FROM orders', 20, 60000, 1),
+    (3, 1, '^SELECT', 20, NULL, 1);
+  LOAD MYSQL QUERY RULES TO RUNTIME;
+"
+docker exec lab12-primary mysql -h proxysql -P 6033 -u appuser -papppass appdb -e "SELECT * FROM orders WHERE id = 1;"
+docker exec lab12-primary mysql -h proxysql -P 6033 -u appuser -papppass appdb -e "UPDATE orders SET data='updated-value' WHERE id = 1;"
+docker exec lab12-primary mysql -h proxysql -P 6033 -u appuser -papppass appdb -e "SELECT * FROM orders WHERE id = 1;"
+```
+The `UPDATE` succeeds — it's correctly routed to the writable hostgroup,
+same as Step 6 confirmed. But the `SELECT` immediately after still
+returns the *old* value. Query rules were correct, hostgroup routing was
+correct, replication isn't even a factor here (there's only one row and
+one write). Check `stats_mysql_query_digest` for this exact query and
+look closely at its `hostgroup` column — what does a value of `-1` mean,
+and what does that tell you about where this response actually came
+from?
 
 See `solution.md` only after you've formed your own diagnosis.

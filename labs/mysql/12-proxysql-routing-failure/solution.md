@@ -4,7 +4,7 @@
 
 **Check:**
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
   SELECT hostgroup, count_star, digest_text
   FROM stats_mysql_query_digest ORDER BY count_star DESC LIMIT 5;
 "
@@ -26,7 +26,7 @@ pattern, it's in putting the broad one *before* the narrow one.
 
 **Fix:**
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
   DELETE FROM mysql_query_rules;
   INSERT INTO mysql_query_rules (rule_id, active, match_pattern, destination_hostgroup, apply) VALUES
     (1, 1, '^SELECT.*FOR UPDATE', 10, 1),
@@ -44,58 +44,78 @@ let an earlier broad rule shadow a later narrow one — always order
 special cases before their general fallback, and don't assume "the rule
 is written correctly" is the same as "the rule is reachable."
 
+**Why the `BEGIN`/`COMMIT`-wrapped version succeeds anyway:** run the
+exact same (still-broken, pre-fix) query rules again, but wrap the
+locking read in an explicit transaction — it succeeds, landing on
+hostgroup 10 despite the rules being identically wrong. ProxySQL's query
+rules route the *first* statement of a session/transaction, but once a
+session is inside an explicit multi-statement transaction (opened with
+`BEGIN`), every subsequent statement in that same transaction is pinned
+to whichever backend connection the transaction is already using —
+ProxySQL will not silently move a `COMMIT`-pending transaction to a
+different physical server mid-flight, since that would break atomicity
+outright (a partial transaction can't span two separate MySQL backends).
+Here, `BEGIN` itself gets routed to hostgroup 10 (ProxySQL's routing for
+transaction-control statements without a specific matching rule falls
+back to `default_hostgroup`, which is 10 for `appuser`), and the `FOR
+UPDATE` read that follows just rides along on that same pinned
+connection — the broken rule 1/rule 2 ordering never even gets a chance
+to misroute it, because query-rule evaluation for routing purposes only
+really matters at the point a new backend connection would otherwise be
+chosen.
+
+**The trap this creates:** an engineer debugging exactly this incident
+by testing with `BEGIN ... COMMIT` (a very natural instinct — "let me
+wrap it safely") will see it work and conclude the rules are fine, while
+the exact same query run by the real application under autocommit fails
+in production. Reproducing a routing incident has to match how the real
+traffic is actually shaped — transactional or not — not just the query
+text.
+
 ---
 
-## Challenge B — a fix that silently un-fixes itself
+## Challenge B — reads correctly routed to the primary still see stale data
 
 **Check:**
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
-  SELECT * FROM mysql_replication_hostgroups;
-  SELECT hostgroup_id, hostname, port, status FROM mysql_servers;
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
+  SELECT hostgroup, digest_text, count_star FROM stats_mysql_query_digest
+  WHERE digest_text LIKE '%orders WHERE id%' ORDER BY last_seen DESC LIMIT 5;
 "
 ```
-`mysql_servers` shows the primary back in hostgroup 20 and the replica
-back in hostgroup 10 — Step 5's manual fix has been reverted, and nobody
-ran `UPDATE mysql_servers` again.
+The repeated `SELECT * FROM orders WHERE id = ?` shows an entry with
+`hostgroup = -1`. Every other query in this lab has shown a real
+hostgroup (10 or 20) — `-1` is different in kind, not just value.
 
-**Diagnosis:** `mysql_replication_hostgroups` turns on ProxySQL's
-built-in replication monitor: it periodically checks each backend's
-`read_only` value and *automatically* reassigns that server into either
-`writer_hostgroup` (if `read_only=0`) or `reader_hostgroup` (if
-`read_only=1`) — overwriting whatever is currently in `mysql_servers` on
-every monitoring cycle, with no confirmation and no diff shown. The
-values used here, `writer_hostgroup=20, reader_hostgroup=10`, are the
-*original swapped numbers* from the incident, not the corrected ones from
-Step 5. The primary is writable (`read_only=0`), so the monitor puts it
-in hostgroup 20 — reintroducing the exact original misconfiguration,
-automatically, on a timer, forever, until `mysql_replication_hostgroups`
-itself is corrected or removed.
+**Diagnosis:** `-1` is ProxySQL's marker for "this response came from
+the query cache, not from any backend at all." Rule 2 in this
+challenge's setup carries `cache_ttl=60000` — for 60 seconds after the
+*first* time a matching `SELECT` runs, ProxySQL serves every identical
+subsequent request straight out of its own in-memory cache, without
+forwarding it to MySQL again. `mysql_servers`, hostgroup routing, and
+replication all did their job correctly here — the write went to the
+primary, and if you'd disabled caching the very next read would have
+gone to the (correct) read hostgroup and returned the fresh value. The
+staleness has nothing to do with *where* the read was routed; it never
+reached a database at all.
 
-This is the trap: `mysql_replication_hostgroups` is presented as a
-"just enable auto-failover-aware routing" feature, but it's still just
-another place to encode the same two numbers — and once it's active, it
-takes priority over any manual edit to `mysql_servers`, because it
-re-applies itself continuously rather than once.
-
-**Fix:** either delete the row (turn the monitor off) or, if you want the
-automatic-reassignment behavior for real failover handling, put the
-*correct* numbers in it:
+**Fix:** either drop the cache TTL for this rule (routing decisions and
+caching decisions can be set independently, so removing `cache_ttl`
+doesn't undo the Step 5/6 fix), or invalidate the cache after writes that
+matter:
 ```bash
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
-  DELETE FROM mysql_replication_hostgroups;
-  -- or, to keep auto-reassignment with the right mapping:
-  -- INSERT INTO mysql_replication_hostgroups (writer_hostgroup, reader_hostgroup, check_type) VALUES (10, 20, 'read_only');
-  UPDATE mysql_servers SET hostgroup_id = 10 WHERE hostname = 'primary';
-  UPDATE mysql_servers SET hostgroup_id = 20 WHERE hostname = 'replica';
-  LOAD MYSQL SERVERS TO RUNTIME;
-  SAVE MYSQL SERVERS TO DISK;
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
+  UPDATE mysql_query_rules SET cache_ttl=NULL WHERE rule_id=2;
+  LOAD MYSQL QUERY RULES TO RUNTIME;
+  SAVE MYSQL QUERY RULES TO DISK;
 "
 ```
 
-**Lesson:** a config table that actively re-asserts itself on a timer can
-make a manual fix look successful right up until the next monitoring
-cycle. When something you fixed comes back on its own, look for a
-background process re-applying config, not for someone/something undoing
-your change by hand — `mysql_replication_hostgroups`, health checks,
-reconcile loops, and config-management agents all share this shape.
+**Lesson:** a proxy sitting between the app and the database can affect
+correctness in ways that have nothing to do with which backend a query
+was sent to. Before assuming "stale read" means replication lag or a
+routing bug, check whether anything in the path — a query cache, an
+application-level cache, a CDN in front of an API — might be answering
+requests without touching the database at all. `stats_mysql_query_digest`
+showing hostgroup `-1` is ProxySQL's own explicit way of telling you
+exactly that, if you know to look for it.

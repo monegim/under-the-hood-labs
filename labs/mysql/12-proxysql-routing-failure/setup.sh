@@ -74,7 +74,7 @@ docker exec lab12-primary mysql -uroot -prootpass appdb -e "
 
 echo "[setup] waiting for proxysql admin interface to accept connections..."
 for i in $(seq 1 30); do
-  if docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "SELECT 1;" >/dev/null 2>&1; then
+  if docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "SELECT 1;" >/dev/null 2>&1; then
     echo "[setup] proxysql admin interface is up"
     break
   fi
@@ -87,7 +87,7 @@ done
 
 echo "[setup] configuring ProxySQL — INJECTING THE FAULT: hostgroups are SWAPPED"
 echo "[setup] (primary -> hostgroup 20 'read', replica -> hostgroup 10 'write')"
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
   SET mysql-monitor_username='monitor';
   SET mysql-monitor_password='monitorpass';
   LOAD MYSQL VARIABLES TO RUNTIME;
@@ -116,7 +116,7 @@ docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
 "
 
 echo "[setup] current mysql_servers hostgroup assignment (this is the bug — read it carefully):"
-docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -e "
+docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -e "
   SELECT hostgroup_id, hostname, port, status FROM mysql_servers;
 "
 

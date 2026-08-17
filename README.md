@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-119%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-121%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -63,13 +63,14 @@ read-only on its own, NFS stale mounts, swap exhaustion, I/O scheduler
 misconfiguration. Everything built on disposable loop devices — nothing
 touches a real disk. [`labs/storage/`](labs/storage)
 
-### Level 4 — Databases (23 built / 20 planned) ✅
+### Level 4 — Databases (25 built / 20 planned) ✅
 Exactly what a DBRE sees. MySQL (replication lag, GTID conflicts,
 deadlocks, slow queries, metadata locks, disk full, binlog corruption,
 connection storms, InnoDB redo log full, semi-sync timeout, partition
 pruning failure, ProxySQL misrouting, purge lag/History List Length,
-manual primary promotion, ProxySQL connection-pool exhaustion — 15/12,
-grown past its original target for deeper MySQL DBRE coverage) and
+manual primary promotion, ProxySQL connection-pool exhaustion,
+auto-increment exhaustion, point-in-time recovery — 17/12, grown well
+past its original target for deeper MySQL DBRE coverage) and
 PostgreSQL (replication lag, WAL full, autovacuum, index bloat, lock
 contention, connection pooler exhaustion, transaction ID wraparound,
 logical replication conflicts — 8/8). [`labs/mysql/`](labs/mysql) ·
@@ -90,9 +91,9 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**119 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
-(Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 23/20) are
-past their target counts — MySQL (15/12, deliberately grown well past
+**121 of ~120 labs are written.** Levels 1 (Linux Basics, 25/21), 2
+(Networking, 29/25), 3 (Storage, 15/15), and 4 (Databases, 25/20) are
+past their target counts — MySQL (17/12, deliberately grown well past
 target for deeper DBRE coverage) and Postgres (8/8). Level 5 (Kubernetes)
 is at 19/20, and Level 6 (Incidents) is at 8/20.
 
@@ -135,7 +136,17 @@ procedure, confirmed that InnoDB purge is held back by the single
 pinned-value test), reproduced a genuine `AUTO_INCREMENT` primary-key
 collision from promoting the wrong replica, and confirmed live that
 ProxySQL enforces three independent, differently-failing connection
-ceilings rather than one. See [`CONTEXT.md`](CONTEXT.md) for the
+ceilings rather than one. Two more labs
+(`16-auto-increment-exhaustion`, `17-point-in-time-recovery`) got the
+same treatment, and along the way a real, already-shipped bug got fixed
+in `12-proxysql-routing-failure`: its admin-interface commands only
+worked from inside the ProxySQL container itself (`-h proxysql` from
+another container fails — ProxySQL's admin user is local-only by
+default), a `BEGIN`/`COMMIT`-wrapped reproduction step that ProxySQL's
+own transaction-pinning silently defeated, and a documented
+`mysql_replication_hostgroups` "auto re-break" claim that didn't
+reproduce under repeated live testing and was replaced with a verified
+query-cache-staleness scenario instead. See [`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
 `kind`+etcd quota behavior, a couple of timing-sensitive PostgreSQL

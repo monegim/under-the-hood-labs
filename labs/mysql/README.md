@@ -1,6 +1,6 @@
 # Level 4 — Databases: MySQL
 
-Fifteen hands-on MySQL/InnoDB incidents, each a real environment with an
+Seventeen hands-on MySQL/InnoDB incidents, each a real environment with an
 induced fault, not a quiz. Same DBRE instinct as the
 [Postgres half of this level](../postgres): reproduce the incident,
 diagnose it from first principles using MySQL's own system views and
@@ -58,10 +58,17 @@ identical on the surface but have a different root cause.
     ProxySQL's own per-backend connection pool fills up while MySQL
     itself sits nearly idle; contrasted with two other independent
     ProxySQL connection ceilings, each failing a different way.
+16. [`16-auto-increment-exhaustion`](16-auto-increment-exhaustion) — a
+    `TINYINT UNSIGNED AUTO_INCREMENT` primary key hits its ceiling while
+    the table itself is nearly empty, since deleted rows never return
+    their IDs to the pool.
+17. [`17-point-in-time-recovery`](17-point-in-time-recovery) — recovering
+    from a `DELETE` with no `WHERE` clause using a full backup plus
+    binary log replay, stopped at the exact position before the mistake.
 
 ## Prerequisites
 
-- Docker + the `docker compose` plugin for labs 1-2, 7, 9-15
+- Docker + the `docker compose` plugin for labs 1-2, 7, 9-17
 - A Linux host with `sudo`/apt access for labs 3-6, 8 (these install
   `mysql-server` directly rather than using Docker — each README says
   exactly what's needed)

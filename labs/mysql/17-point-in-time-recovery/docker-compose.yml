@@ -1,0 +1,58 @@
+services:
+  primary:
+    image: mysql:8.0
+    container_name: lab17-primary
+    command:
+      - --server-id=1
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3317:3306"
+    volumes:
+      - ./data/primary:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # A fresh, separate instance to restore the backup into — recovering
+  # onto a new target (not the still-broken primary) is the realistic
+  # pattern, so you can verify correctness before cutting over.
+  restore:
+    image: mysql:8.0
+    container_name: lab17-restore
+    command:
+      - --server-id=2
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+    ports:
+      - "3318:3306"
+    volumes:
+      - ./data/restore:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # mysql:8.0 does not ship mysqlbinlog at all. This is a real,
+  # unavoidable constraint, not a lab shortcut — see CONCEPTS.md. Debian's
+  # default-mysql-client package provides an equivalent binary named
+  # mariadb-binlog, which correctly decodes MySQL 8.0 ROW-format binlogs
+  # for position-based operations (verified: it treats MySQL's own GTID
+  # event as a safely-ignorable pass-through rather than erroring).
+  tools:
+    image: debian:bookworm-slim
+    container_name: lab17-tools
+    command: ["bash", "-c", "apt-get update -qq && apt-get install -y -qq default-mysql-client && sleep infinity"]
+    depends_on:
+      primary:
+        condition: service_healthy
+      restore:
+        condition: service_healthy

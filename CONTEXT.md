@@ -289,6 +289,88 @@ which means `mysql/12-proxysql-routing-failure`'s already-shipped
 setup.sh (which uses the `-h proxysql` form from the primary container)
 is very likely broken and unverified; worth a follow-up fix.
 
+**2026-08-17 — fixed `mysql/12-proxysql-routing-failure`, MySQL now 17/12:**
+the user asked to fix the ProxySQL routing-failure bug flagged the
+previous session, and to keep adding MySQL DBRE labs. The fix uncovered
+two more real, deeper issues in the same already-shipped lab, live-tested
+before and after each fix:
+1. Every admin-interface command used `docker exec lab12-primary mysql -h
+   proxysql -P 6032 ...` (cross-container). ProxySQL's `admin` user
+   rejects any connection that isn't local to the ProxySQL process itself
+   — confirmed via a scratch two-container test — so every one of these
+   commands failed with `User 'admin' can only connect locally`. Fixed by
+   changing all 14 occurrences across setup.sh/check.sh/README.md/solution.md
+   to `docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 ...` (exec
+   into the ProxySQL container, connect to its own localhost). The
+   client-traffic port (6033) does NOT have this restriction — confirmed
+   separately — so those commands were left as cross-container as
+   originally written.
+2. Challenge A's reproduction wrapped the locking `SELECT ... FOR UPDATE`
+   in `BEGIN; ...; COMMIT;` — live-tested and found this made the
+   (still-broken) query rules succeed instead of failing, because
+   ProxySQL pins every statement inside an open transaction to whichever
+   backend connection the transaction is already using, so the broken
+   rule-ordering bug never got a chance to misroute it. Fixed by
+   reproducing as a standalone autocommit statement instead (which
+   correctly fails), and added the transaction-pinning contrast as a
+   documented follow-up in the same challenge, since it's a genuine,
+   valuable, separately-verified lesson.
+3. Challenge B's premise (`mysql_replication_hostgroups` with the
+   original swapped writer/reader hostgroup numbers "silently un-fixing"
+   a manual repair on a timer) did NOT reproduce under repeated live
+   testing — waited 60+ seconds, toggled real `read_only` status on the
+   primary directly, tried multiple variations; `mysql_servers` stayed
+   correctly assigned every time. Rather than ship an unverified/likely-
+   wrong technical claim, Challenge B was redesigned around a
+   different, fully live-verified ProxySQL mechanism instead: query
+   result caching (`cache_ttl` on a query rule) causing a read
+   immediately after a correctly-routed write to return stale data,
+   diagnosed via `stats_mysql_query_digest` showing `hostgroup = -1`
+   (ProxySQL's marker for "answered from cache, no backend touched").
+   `CONCEPTS.md` and `solution.md` were both rewritten to match.
+
+Then added `mysql/16-auto-increment-exhaustion` and
+`17-point-in-time-recovery`, both built and verified end-to-end against
+live Docker containers. Real findings: `SHOW TABLE STATUS`'s
+`Auto_increment` column can show a stale/cached value for InnoDB
+immediately after writes — `SHOW CREATE TABLE` is the reliable, always-
+live source, used throughout lab 16's scripts instead; converting
+`TINYINT` to `TINYINT UNSIGNED` genuinely doubles usable AUTO_INCREMENT
+headroom for zero storage cost (verified: exhaustion at 127 vs. 255);
+`auto_increment_increment=10` causes a verified ~10x-faster ID
+consumption rate than row count alone predicts. For lab 17: the official
+`mysql:8.0` Docker image does not ship `mysqlbinlog` at all (verified via
+`ls /usr/bin`) — worked around with a separate Debian `tools` container
+providing `mariadb-binlog`, verified to correctly decode MySQL 8.0
+ROW-format binlogs (treating MySQL's own GTID event as a safely-ignorable
+pass-through) for position-based (not GTID-based — that compatibility
+was not tested and is not relied on) start/stop-position replay; found
+and worked around a real cross-tool gotcha where `mariadb-binlog`'s
+decoded session-variable preamble includes `check_constraint_checks`,
+which MySQL doesn't recognize, silently aborting a naive `| mysql` pipe
+unless `--force` is used — this became Challenge A. Position-based
+"skip just the bad transaction, keep everything before and after it"
+recovery (two replay passes around a gap) was verified end-to-end and
+became Challenge B.
+
+A third lab — MySQL InnoDB tablespace corruption + `innodb_force_recovery`
+— was attempted and abandoned after significant live testing. Corrupting
+an `.ibd` file's data page (via `dd`, matching the established pattern
+from `07-binlog-corruption`) reliably crashed the entire `mysqld`
+process on any query touching the table, and this did NOT become
+recoverable even at `innodb_force_recovery=6` (the maximum level) —
+every level from 1 through 6 was tried live. Rather than ship a lab
+whose "fix" step doesn't actually work, this topic was dropped for now.
+If revisited, a gentler/more targeted corruption (flipping a handful of
+bits rather than overwriting 512 bytes of pure random data, and/or
+targeting bytes confirmed to fall within row-data rather than any
+page structure) would need to be found and verified first — this may
+be a case where `innodb_force_recovery` genuinely cannot save a page
+this badly corrupted, in which case the lab's honest lesson would need
+to become "know when force_recovery can't save you and a restore from
+backup is the only path," which is itself defensible but changes the
+lab's shape significantly from what was originally planned.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

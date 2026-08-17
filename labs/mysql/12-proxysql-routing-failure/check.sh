@@ -29,7 +29,7 @@ else
 fi
 
 echo "[check] does mysql_servers show the correct (non-swapped) hostgroup assignment?"
-ASSIGNMENT=$(docker exec lab12-primary mysql -h proxysql -P 6032 -u admin -padmin -N -e \
+ASSIGNMENT=$(docker exec lab12-proxysql mysql -h127.0.0.1 -P6032 -u admin -padmin -N -e \
     "SELECT hostgroup_id FROM mysql_servers WHERE hostname='primary';" 2>/dev/null)
 echo "[check] primary is currently assigned to hostgroup_id=${ASSIGNMENT:-<none>}"
 if [ "$ASSIGNMENT" = "10" ]; then
