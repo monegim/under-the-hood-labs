@@ -1,0 +1,20 @@
+services:
+  primary:
+    image: mysql:8.0
+    container_name: lab21-primary
+    command:
+      - --server-id=1
+      - --innodb-buffer-pool-size=${BUFFER_POOL_SIZE:-25165824}
+      - --innodb-old-blocks-time=${OLD_BLOCKS_TIME:-1000}
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3322:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

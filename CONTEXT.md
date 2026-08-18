@@ -981,6 +981,38 @@ substantial live iteration:
   technique used for incident 09) and running it directly as plain
   background processes.
 
+**2026-08-18 (later still) — MySQL grew to 21/12:
+`21-buffer-pool-sizing` added (user-requested, first of a "buffer
+pool / B-tree+composite indexes / isolation levels" priority list),
+fully live-verified against real MySQL 8.0 containers. A 24MB buffer
+pool against a working set grown to ~75MB produces a stable ~86-89%
+hit ratio for random point lookups (never improves with more warming
+— genuinely can't fit); resizing to 128MB (online, `SET GLOBAL`, no
+restart) recovers it to ~95-97%. Challenge A
+(`innodb_old_blocks_time`): confirmed live that a small, properly
+*repeatedly*-warmed hot table (not just queried once — a single access
+never promotes a page out of the LRU "old" sublist at all) survives a
+6x-oversized one-off scan almost untouched (301→296 of 301 pages) with
+the default 1000ms protection, versus almost total eviction (301→~0
+pages) with it disabled — but only once the hot/scan size ratio was
+tuned correctly: an earlier attempt using a much bigger scan (599MB
+against a 128MB pool, sized proportionally to the main lab's own fixed
+state) fully saturated the pool regardless of the setting, since
+`old_blocks_time` delays promotion but doesn't reserve dedicated
+capacity - it can't protect anything once the scan alone exceeds the
+whole pool. Challenge B: confirmed live that `SET GLOBAL
+innodb_buffer_pool_size` reverts to the `docker-compose.yml`
+`command:`-line value on a plain `docker restart`, and that setting it
+via a `BUFFER_POOL_SIZE` env var instead survives repeated restarts.
+Root cause of the size-vs-hit-ratio numbers needing several iterations
+to get right: `information_schema.tables`' `data_length`/`index_length`
+are stale for InnoDB until `ANALYZE TABLE` is run; small lookup-count
+test batches (300) statistically can't cover a multi-thousand-page
+table, understating achievable hit ratios even with adequate pool
+size, until batch size was raised to 2000 lookups per test pass, piped
+as one multi-statement `mysql` invocation instead of one process per
+lookup (also far faster).
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

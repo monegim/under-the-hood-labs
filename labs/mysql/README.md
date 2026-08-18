@@ -1,6 +1,6 @@
 # Level 4 — Databases: MySQL
 
-Twenty hands-on MySQL/InnoDB incidents, each a real environment with an
+Twenty-one hands-on MySQL/InnoDB incidents, each a real environment with an
 induced fault, not a quiz. Same DBRE instinct as the
 [Postgres half of this level](../postgres): reproduce the incident,
 diagnose it from first principles using MySQL's own system views and
@@ -79,6 +79,11 @@ identical on the surface but have a different root cause.
     a ProxySQL routing fix loaded `TO RUNTIME` but never `SAVE`d `TO
     DISK` silently reverts on the next unrelated restart, weeks after
     the change that actually caused it.
+21. [`21-buffer-pool-sizing`](21-buffer-pool-sizing) — a table that
+    outgrew its buffer pool degrades the hit ratio for otherwise
+    unchanged, correctly-indexed queries; plus a single ad-hoc scan
+    evicting a well-sized pool's genuinely hot data, and why `SET
+    GLOBAL innodb_buffer_pool_size` doesn't survive a restart.
 
 ## Prerequisites
 
