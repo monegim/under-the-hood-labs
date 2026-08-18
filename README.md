@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-133%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-134%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -91,19 +91,19 @@ misconfiguration, probe misconfiguration, taints/tolerations, image pull
 failures, scheduler unable to place a Pod — all on a `kind` cluster.
 [`labs/kubernetes/`](labs/kubernetes)
 
-### Level 6 — Production Incidents (10 built / 20 planned)
+### Level 6 — Production Incidents (11 built / 20 planned)
 Combines two or more mechanisms from Levels 1-5 into a single synthetic
 incident: a realistic on-call page, symptoms only, no hint which
 subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**133 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
+**134 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
 (Networking, 33/25), 3 (Storage, 15/15), and 4 (Databases, 28/20) are
 past their target counts — MySQL (20/12, deliberately grown well past
 target for deeper DBRE coverage) and Postgres (8/8). Level 5
 (Kubernetes) has just reached its target count at 20/20. Level 6
-(Incidents) is at 10/20.
+(Incidents) is at 11/20.
 
 Every lab across every level has full `check.sh`/`reset.sh` automation.
 Most labs also have `setup.sh`; the containerlab-based networking labs
@@ -257,15 +257,29 @@ as part of fault injection (matching what genuinely happens once a
 real cache entry expires) so the incident reproduces immediately
 instead of "wait an indeterminate amount of time to see it break."
 `labs/networking/README.md` itself didn't exist before this batch —
-built from scratch covering all 33 labs. See
-[`CONTEXT.md`](CONTEXT.md) for the
+built from scratch covering all 33 labs. Level 6 (Incidents) added
+`09-the-shared-proxy-meltdown` (nginx's shared `worker_connections`
+pool starved by an unrelated backend's hung endpoint), verified live
+end to end — confirmed a service reachable directly in milliseconds
+fails immediately through the shared proxy once the pool is exhausted,
+confirmed `proxy_connect_timeout` alone genuinely does nothing here
+(the hung backend accepts the TCP connection instantly; only
+`proxy_read_timeout` guards the phase that's actually stuck), and
+caught a real bug in `check.sh` before it shipped — its initial
+"is the environment up" check originally tested the exact path that's
+*supposed* to be broken during the incident, misreporting a live
+incident as "run setup.sh first." Also caught a stale committed
+`haproxy.cfg` from `31-load-balancer-health-check-blind-spot` (left
+with its health check commented out from live-testing Challenge B
+before the batch commit) and restored it to match what `setup.sh`
+actually generates. See [`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
 `kind`+etcd quota behavior, a couple of timing-sensitive PostgreSQL
 challenges in the original five Postgres labs) and worth prioritizing in
 a dry run.
 
-Remaining to reach ~120: Level 6 (10 more incidents). Levels 1-5 are
+Remaining to reach ~120: Level 6 (9 more incidents). Levels 1-5 are
 done for now — their original target counts (21, 25, 15, 20, and 20)
 have all been met — Level 2 grew further still, first to add a
 dedicated `iptables` mechanics set and then again for `mangle`-table

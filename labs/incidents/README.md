@@ -70,6 +70,11 @@ scratch).
   gets consistently slower with zero errors and zero deploys to blame,
   because one address family's path to a backend port is silently
   dropped, not refused, and the client trying it never races the fallback.
+- [`09-the-shared-proxy-meltdown`](09-the-shared-proxy-meltdown) - a
+  critical service starts throwing connection errors with nothing
+  wrong in its own deployment, because an unrelated, lower-priority
+  service sharing the same reverse proxy is quietly holding every
+  connection slot hostage.
 - [`11-the-vanishing-changes`](11-the-vanishing-changes) - saved
   changes silently revert minutes later, with no errors anywhere, for
   no reproducible reason.
@@ -81,7 +86,7 @@ scratch).
 
 - Docker + the `docker compose` plugin (incidents 1, 3, 4, 7, 8, 11)
 - Docker + [containerlab](https://containerlab.dev) (incident 2)
-- A Linux VM with `sudo` access, no containers required (incidents 5, 16)
+- A Linux VM with `sudo` access, no containers required (incidents 5, 9, 16)
 - Docker + [`kind`](https://kind.sigs.k8s.io/) + `kubectl` (incident 6)
 - The usual troubleshooting toolkit from Levels 1-5: `top`,
   `docker stats`, `iostat`, `tcpdump`, `iptables`, `mysql`/`psql`

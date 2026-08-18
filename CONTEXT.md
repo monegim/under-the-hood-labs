@@ -825,6 +825,86 @@ assumed; the internal-link checker apparently doesn't flag a level
 directory lacking its own README, only broken links between existing
 files.
 
+**2026-08-18 (later same day) — fixed a stale committed file from the
+previous batch, then Level 6 (Incidents) grew to 11/20:
+`09-the-shared-proxy-meltdown` added, fully live-verified.**
+
+Pre-existing bug found and fixed first: `labs/networking/31-load-balancer-health-check-blind-spot/haproxy/haproxy.cfg`
+had been committed with `option httpchk`/`http-check expect` commented
+out - the state left over from live-testing that lab's Challenge B
+(the TCP-only-check scenario) right before the batch commit landed.
+`setup.sh` always overwrites this file fresh via heredoc at runtime,
+so the lab itself was never actually broken by this, but the tracked
+file on GitHub was misleading (showed Challenge B's state as if it
+were the lab's default). A system reminder flagged the file as
+modified before this session's work began; verified via `git diff`
+that the committed content genuinely had the comments in it (not a
+local-only uncommitted change), restored the correct
+`option httpchk GET /healthz` / `http-check expect status 200` lines,
+confirmed the restored content matches `setup.sh`'s heredoc exactly
+(`diff` against the extracted heredoc section), committed and pushed
+as its own small fix commit before starting new work.
+
+`09-the-shared-proxy-meltdown`: nginx as a single shared reverse
+proxy in front of two unrelated services - `service-a` (the actual
+subject of the page, always fast) and `service-b` (a lower-priority
+internal tool whose one endpoint hangs indefinitely). `worker_connections`
+set deliberately low (8) so the meltdown reproduces with just a
+handful of concurrent hung requests. Confirmed live: `service-a`
+answers in ~5ms when hit directly on its own port, but fails
+immediately (`HTTP 000`) through nginx once a burst of ~6 concurrent
+requests into `service-b`'s hung endpoint exhausts the shared pool -
+proof the bottleneck is nginx's connection budget, not `service-a`
+itself. Confirmed `proxy_connect_timeout` alone does not fix this
+(verified live, twice, including a fully-clean container rebuild to
+rule out residual state) - `service-b`'s process is alive and accepts
+the TCP connection instantly, so the connect phase never has anything
+to time out on; only `proxy_read_timeout` (guarding the
+response-waiting phase) actually helps. A real, valuable nuance
+surfaced during verification: even with the correct fix in place,
+`service-a` doesn't recover *instantly* during an active burst against
+`service-b` - it recovers within the configured `proxy_read_timeout`
+window (confirmed at ~2s with `proxy_read_timeout 3s` set) as held
+connections get released and freed back to the pool. `check.sh` was
+designed around this from the start: it fires a fresh burst at
+`service-b`, then polls `service-a` for recovery within a bounded
+window (15s) rather than expecting instant success - correctly FAILs
+throughout that window against the unfixed config (verified with a
+completely fresh container, no leftover state) and correctly PASSes
+within ~2-6s once the fix is applied.
+
+A real bug was caught and fixed in `check.sh` before shipping: its
+initial "is the environment even up" guard originally sent a request
+to `service-a` *through nginx* - but that's the exact path that's
+supposed to be failing during a live incident, so running `check.sh`
+against a genuinely broken environment misreported it as "nginx is
+not reachable - run setup.sh first" instead of correctly identifying
+the incident as still active. Fixed by checking `systemctl is-active`
+for the `nginx` and `service-a` systemd units directly instead of
+making an HTTP request through the exact layer under test - matching
+the pattern already used by `05-the-restart-that-doesnt-help`'s
+`check.sh` (a filesystem/mountpoint check, not a request through the
+broken path).
+
+Verification method: since `systemd` isn't available in the Docker
+container used as this project's "Linux VM" stand-in, the `systemctl`
+service-management lines in `setup.sh`/`check.sh`/`reset.sh` could not
+be directly executed in this environment - only their syntax was
+checked. The actual reproducible mechanism (nginx config, the two
+Python services, the burst-and-poll logic in `check.sh`) was fully
+verified by extracting the exact embedded heredoc content from the
+shipped scripts (`sed` between the `tee`/`EOF` markers) and running it
+directly via plain background processes against multiple genuinely
+clean container rebuilds - required because Docker's `pkill`/process
+cleanup between test iterations proved unreliable mid-session (stray
+`nginx` master processes survived `pkill`/targeted `kill -9` more
+than once), and a first test that appeared to show fast "recovery" on
+the *broken* config turned out to be contaminated by leftover
+long-running `curl -m 60` processes from an earlier manual test
+approaching their own timeout - caught by rerunning against a
+provably clean container rather than trusting a single surprising
+result.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat
