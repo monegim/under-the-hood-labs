@@ -905,6 +905,82 @@ approaching their own timeout - caught by rerunning against a
 provably clean container rather than trusting a single surprising
 result.
 
+**2026-08-18 (later still) — Level 6 (Incidents) grew to 12/20:
+`10-the-fix-that-made-it-worse` added, fully live-verified, with a
+design that changed significantly mid-build once live testing
+revealed the first version's premise was backwards.**
+
+Scenario: `client-traffic.service` (standing in for real recurring
+checkout burst traffic) retries every failed request up to `RETRIES`
+times immediately, no backoff, into `backend.service` (a small HTTP
+service with a genuinely fixed, finite capacity via a
+`ThreadPoolExecutor(max_workers=3)` and 0.3s of real work per
+request). `RETRIES=3` was "the fix" - applied specifically to reduce
+user-visible checkout errors - and instead turns a stable, tolerated
+burst-time failure rate into a full, unrecovering outage.
+
+Getting the underlying mechanism to actually behave this way took
+substantial live iteration:
+
+- First model: an instant-reject semaphore (`BoundedSemaphore`,
+  non-blocking `acquire()`, immediate `503` if the pool is full).
+  Confirmed live that this makes retries essentially *free* for the
+  server - a rejected attempt costs the backend nothing (no queueing,
+  no work started), so retries just added connection overhead without
+  ever competing for the same constrained resource in a way that hurt
+  throughput. Across multiple rate/retry combinations, logical failure
+  rate stayed roughly flat or even improved slightly with retries
+  enabled - the opposite of the intended lesson. Abandoned this model
+  entirely rather than force the intended conclusion.
+- Second model: a real bounded worker pool with an *unbounded queue*
+  (`ThreadPoolExecutor(max_workers=3)`, `future.result()` blocks until
+  the request's turn comes up and completes) plus a client-side
+  request timeout (abandon and, if retries remain, immediately
+  resubmit). This is much closer to how a real queue-based backend
+  actually behaves - an abandoned-by-the-client request is still
+  consuming a worker slot server-side, so retries genuinely compete
+  with (and can starve) requests that would otherwise have succeeded.
+- Even with the correct model, tuning the offered rate against
+  capacity was extremely sensitive - burst sizes of 10-13 (at
+  `BURST_INTERVAL=2s`, `CLIENT_TIMEOUT=1.0s`) consistently showed
+  retries *helping* (enough slack existed between bursts for the
+  extra attempts to be absorbed); burst size 14-15 crossed a sharp,
+  narrow threshold into the intended runaway-failure regime. Confirmed
+  this transition directly, side by side, at multiple burst sizes
+  before locking in `BURST_SIZE=15`.
+- A finite-duration test harness (fixed `TOTAL_TIME`, joining all
+  threads with a timeout before reporting) initially suggested a
+  *stable* elevated failure rate under retries (~76-78%, plateauing) -
+  this turned out to be an artifact of the harness itself capping how
+  long any single test run could observe the system, not evidence the
+  backlog was actually stabilizing. Removing the fixed duration and
+  running the actual shipped `client-traffic.py` (which runs
+  indefinitely, exactly as `setup.sh` deploys it via systemd) revealed
+  the real, more severe behavior: complete saturation (100% failure)
+  within the first 10-second report window, with cumulative HTTP
+  request volume growing *linearly forever* (270 → 570 → 870 → ... →
+  2370 over 80 seconds, no sign of plateauing) - genuine unbounded
+  backlog growth, not a new equilibrium. A matching control run with
+  `RETRIES=0` over the same duration stayed at a flat, stable 40%
+  failure rate the entire time, confirming the contrast is real and
+  not measurement noise.
+- The originally-planned `check.sh` threshold (fail above 20%) had to
+  be revised to 60% once the real "healthy" baseline turned out to be
+  a stable ~40%, not the near-zero baseline originally assumed -
+  adjusted the README/solution narrative to match reality (a service
+  deliberately sized for average, not peak, load, with a known,
+  accepted non-zero burst-time failure rate) rather than force an
+  unrealistic "normally near-perfect" story.
+- Verification method: `systemd` unit files
+  (`backend.service`/`client-traffic.service`) could not be directly
+  executed in the Docker-container test environment used throughout
+  this session (no `systemd`), so their syntax was checked but not
+  run as actual systemd units. The real embedded Python scripts and
+  the full retry/backlog mechanism were fully verified by extracting
+  the exact heredoc content from `setup.sh` (same `sed` extraction
+  technique used for incident 09) and running it directly as plain
+  background processes.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

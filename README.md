@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-134%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-135%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -91,19 +91,19 @@ misconfiguration, probe misconfiguration, taints/tolerations, image pull
 failures, scheduler unable to place a Pod — all on a `kind` cluster.
 [`labs/kubernetes/`](labs/kubernetes)
 
-### Level 6 — Production Incidents (11 built / 20 planned)
+### Level 6 — Production Incidents (12 built / 20 planned)
 Combines two or more mechanisms from Levels 1-5 into a single synthetic
 incident: a realistic on-call page, symptoms only, no hint which
 subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**134 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
+**135 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
 (Networking, 33/25), 3 (Storage, 15/15), and 4 (Databases, 28/20) are
 past their target counts — MySQL (20/12, deliberately grown well past
 target for deeper DBRE coverage) and Postgres (8/8). Level 5
 (Kubernetes) has just reached its target count at 20/20. Level 6
-(Incidents) is at 11/20.
+(Incidents) is at 12/20.
 
 Every lab across every level has full `check.sh`/`reset.sh` automation.
 Most labs also have `setup.sh`; the containerlab-based networking labs
@@ -272,14 +272,25 @@ incident as "run setup.sh first." Also caught a stale committed
 `haproxy.cfg` from `31-load-balancer-health-check-blind-spot` (left
 with its health check commented out from live-testing Challenge B
 before the batch commit) and restored it to match what `setup.sh`
-actually generates. See [`CONTEXT.md`](CONTEXT.md) for the
+actually generates. `10-the-fix-that-made-it-worse` (retries with no
+backoff turning a stable, known ~40% burst-time failure rate into a
+runaway, unrecovering outage) needed real tuning to get right — an
+early version showed retries consistently *helping*, not hurting,
+until live testing revealed why: a fixed-duration test harness that
+joins all its threads before measuring never lets a genuine unbounded
+backlog reveal itself. Removing that artificial cutoff and letting
+the retry-driven backlog run for real showed the actual effect: not
+a stable elevated failure rate, but complete, permanent saturation
+(100% failures, backlog growing linearly forever) - confirmed against
+a matching control run with retries disabled staying at a flat,
+stable 40% indefinitely. See [`CONTEXT.md`](CONTEXT.md) for the
 full list of what's flagged as needing a live check — a few items are
 flagged as genuinely low-confidence (exact `dm-flakey` argument syntax,
 `kind`+etcd quota behavior, a couple of timing-sensitive PostgreSQL
 challenges in the original five Postgres labs) and worth prioritizing in
 a dry run.
 
-Remaining to reach ~120: Level 6 (9 more incidents). Levels 1-5 are
+Remaining to reach ~120: Level 6 (8 more incidents). Levels 1-5 are
 done for now — their original target counts (21, 25, 15, 20, and 20)
 have all been met — Level 2 grew further still, first to add a
 dedicated `iptables` mechanics set and then again for `mangle`-table

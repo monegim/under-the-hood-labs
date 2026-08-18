@@ -75,6 +75,11 @@ scratch).
   wrong in its own deployment, because an unrelated, lower-priority
   service sharing the same reverse proxy is quietly holding every
   connection slot hostage.
+- [`10-the-fix-that-made-it-worse`](10-the-fix-that-made-it-worse) - a
+  service's known, stable ~40% burst-time failure rate spirals to a
+  full, unrecovering outage after a well-intentioned retry policy
+  turns every failed request into several more, feeding the exact
+  overload that caused it.
 - [`11-the-vanishing-changes`](11-the-vanishing-changes) - saved
   changes silently revert minutes later, with no errors anywhere, for
   no reproducible reason.
@@ -86,7 +91,7 @@ scratch).
 
 - Docker + the `docker compose` plugin (incidents 1, 3, 4, 7, 8, 11)
 - Docker + [containerlab](https://containerlab.dev) (incident 2)
-- A Linux VM with `sudo` access, no containers required (incidents 5, 9, 16)
+- A Linux VM with `sudo` access, no containers required (incidents 5, 9, 10, 16)
 - Docker + [`kind`](https://kind.sigs.k8s.io/) + `kubectl` (incident 6)
 - The usual troubleshooting toolkit from Levels 1-5: `top`,
   `docker stats`, `iostat`, `tcpdump`, `iptables`, `mysql`/`psql`
