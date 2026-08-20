@@ -1033,6 +1033,27 @@ VERSIONING LIMIT`/`AUTO` syntax after two failed attempts rather than
 keep guessing at exact syntax — used only mechanisms confirmed working
 on the first or second try.
 
+**2026-08-20 (later same day) — MySQL grew to 23/12:
+`23-mariadb-sequences` added (second MariaDB-only-concept lab), lean
+single-pass verification throughout. `CACHE 100` on a `SEQUENCE`
+persists the entire cache block to disk on the first `NEXTVAL()`, not
+incrementally - confirmed live: 3 values actually issued, then a
+container restart, then the next value jumps straight to 101 (97
+values permanently gone). Fix confirmed via `ALTER SEQUENCE ...
+NOCACHE`, verified surviving a real restart with a 0 gap. Challenge A
+(`CYCLE MAXVALUE 5` wrapping into still-occupied primary-key space)
+confirmed live: filling ids 1-5 then inserting a 6th row fails with a
+genuine `Duplicate entry '1'` error. Challenge B (one sequence shared
+across two tables' `DEFAULT NEXTVAL(...)`) confirmed live: a table
+that's never had a row deleted shows a real gap because a *different*
+table drew the missing value from the same counter. One real
+transient bug hit and fixed: `reset.sh`'s `docker compose down -v` +
+`rm -rf ./data` + immediate `docker compose up -d` raced the bind
+mount on this host, MariaDB failed to start
+(`Can't create/write to file './ddl_recovery.log'`) - fixed by adding
+`mkdir -p ./data/mysql` before `docker compose up` in `setup.sh`;
+confirmed clean on a subsequent rebuild.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

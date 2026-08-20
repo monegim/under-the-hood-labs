@@ -1,6 +1,6 @@
 # Level 4 — Databases: MySQL
 
-Twenty-two hands-on MySQL/InnoDB/MariaDB incidents, each a real environment with an
+Twenty-three hands-on MySQL/InnoDB/MariaDB incidents, each a real environment with an
 induced fault, not a quiz. Same DBRE instinct as the
 [Postgres half of this level](../postgres): reproduce the incident,
 diagnose it from first principles using MySQL's own system views and
@@ -89,6 +89,11 @@ identical on the surface but have a different root cause.
     VERSIONING` quietly keeps a full row for every `UPDATE`/`DELETE`
     forever by default, invisible to every query the application
     actually runs, until someone checks what's really on disk.
+23. [`23-mariadb-sequences`](23-mariadb-sequences) — MariaDB's
+    `SEQUENCE` objects (no MySQL equivalent): a `CACHE`d block of
+    invoice numbers that vanishes on a routine restart, `CYCLE`
+    wrapping into still-occupied primary-key space, and one sequence
+    silently shared across two different tables' IDs.
 
 ## Prerequisites
 
