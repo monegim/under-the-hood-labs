@@ -1013,6 +1013,26 @@ size, until batch size was raised to 2000 lookups per test pass, piped
 as one multi-statement `mysql` invocation instead of one process per
 lookup (also far faster).
 
+**2026-08-20 — MySQL grew to 22/12: `22-mariadb-system-versioning`
+added (user-requested, first MariaDB-only-concept lab — no MySQL
+equivalent exists), live-verified with a deliberately lean pass after
+explicit user feedback that the buffer-pool lab's session cost was too
+high.** Single clean `mariadb:11` container, each core claim checked
+once rather than iteratively re-tuned: `WITH SYSTEM VERSIONING` keeps
+every historical row version by default (3 visible rows vs 403 actual
+on disk after ~400 routine `UPDATE`s), `DELETE HISTORY FROM ... BEFORE
+SYSTEM_TIME NOW()` purges it back down to 3 without touching current
+data, `FOR SYSTEM_TIME AS OF <timestamp>` genuinely recovers a
+pre-update value with zero audit-table/trigger code, and a plain
+`DELETE` on a versioned table removes a row from normal queries while
+leaving it fully intact in history. Noted along the way: MariaDB's
+`mariadb:11` image ships `mariadb`/`mariadb-admin` client binaries,
+not `mysql`/`mysqladmin` — confirmed directly (`which` came back
+empty for the MySQL-style names). Skipped `ALTER TABLE ... SYSTEM
+VERSIONING LIMIT`/`AUTO` syntax after two failed attempts rather than
+keep guessing at exact syntax — used only mechanisms confirmed working
+on the first or second try.
+
 **Git/GitHub note:** during the original 30-lab batch, a background agent
 ran `git commit` (and later `git push`) despite explicit instructions not
 to — this was caught and disclosed to the user, who decided to just treat

@@ -2,7 +2,7 @@
 
 [![Lint](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml/badge.svg)](https://github.com/monegim/under-the-hood-labs/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Labs](https://img.shields.io/badge/labs-136%2F~120-blue)
+![Labs](https://img.shields.io/badge/labs-137%2F~120-blue)
 
 Most "hands-on Linux/networking/DBRE" content teaches you how to configure
 things. This teaches you how to **troubleshoot** them — build the system,
@@ -67,15 +67,16 @@ read-only on its own, NFS stale mounts, swap exhaustion, I/O scheduler
 misconfiguration. Everything built on disposable loop devices — nothing
 touches a real disk. [`labs/storage/`](labs/storage)
 
-### Level 4 — Databases (28 built / 20 planned) ✅
+### Level 4 — Databases (30 built / 20 planned) ✅
 Exactly what a DBRE sees. MySQL (replication lag, GTID conflicts,
 deadlocks, slow queries, metadata locks, disk full, binlog corruption,
 connection storms, InnoDB redo log full, semi-sync timeout, partition
 pruning failure, ProxySQL misrouting, purge lag/History List Length,
 manual primary promotion, ProxySQL connection-pool exhaustion,
 auto-increment exhaustion, point-in-time recovery, InnoDB corruption
-recovery, ProxySQL auth mismatch, ProxySQL RUNTIME-vs-DISK config loss —
-20/12, grown well past its original target for deeper MySQL
+recovery, ProxySQL auth mismatch, ProxySQL RUNTIME-vs-DISK config loss,
+buffer pool sizing/scan resistance, MariaDB system-versioned tables —
+22/12, grown well past its original target for deeper MySQL
 DBRE coverage) and
 PostgreSQL (replication lag, WAL full, autovacuum, index bloat, lock
 contention, connection pooler exhaustion, transaction ID wraparound,
@@ -98,9 +99,9 @@ subsystem is at fault. [`labs/incidents/`](labs/incidents)
 
 ## Status
 
-**136 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
+**137 of ~120 labs are written.** Levels 1 (Linux Basics, 27/21), 2
 (Networking, 33/25), 3 (Storage, 15/15), and 4 (Databases, 28/20) are
-past their target counts — MySQL (21/12, deliberately grown well past
+past their target counts — MySQL (22/12, deliberately grown well past
 target for deeper DBRE coverage) and Postgres (8/8). Level 5
 (Kubernetes) has just reached its target count at 20/20. Level 6
 (Incidents) is at 12/20.
